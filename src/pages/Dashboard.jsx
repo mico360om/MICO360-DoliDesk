@@ -158,17 +158,37 @@ export default function Dashboard() {
     { e: ENTITIES.proposals, n: count('proposals'), err: stats.errors.proposals },
   ]
 
+  // If every record type failed, this is a connection/auth problem — not an
+  // empty company. Surface it clearly rather than showing all-zero figures.
+  const errorList = Object.values(stats.errors).filter(Boolean)
+  const allFailed = errorList.length === Object.keys(stats.errors).length
+
   return (
     <div className="space-y-5 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-slate-800">Dashboard</h1>
-          <p className="text-sm text-slate-500">
-            <span className="font-medium text-slate-700">{activeProfile?.name}</span> · across your data (up to {CAP.toLocaleString()} records per type)
+          <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100">Dashboard</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            <span className="font-medium text-slate-700 dark:text-slate-300">{activeProfile?.name}</span> · across your data (up to {CAP.toLocaleString()} records per type)
           </p>
         </div>
         <button className="btn-outline" onClick={load}>↻ Refresh</button>
       </div>
+
+      {/* Connection error banner */}
+      {allFailed && (
+        <div className="flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 dark:border-rose-900 dark:bg-rose-950/40">
+          <span className="text-xl">⚠️</span>
+          <div className="flex-1">
+            <div className="text-sm font-semibold text-rose-700 dark:text-rose-300">Couldn't reach Dolibarr</div>
+            <div className="mt-0.5 text-sm text-rose-600 dark:text-rose-400">
+              No data could be loaded — this usually means the API URL is wrong, the key/token is invalid, or the server is unreachable. The figures below are not real.
+            </div>
+            <div className="mt-1 text-xs text-rose-500/80">{errorList[0]}</div>
+            <button className="btn-outline mt-2" onClick={load}>↻ Retry</button>
+          </div>
+        </div>
+      )}
 
       {/* KPI row */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -235,8 +255,8 @@ export default function Dashboard() {
           >
             <span className="text-2xl">{c.e.icon}</span>
             <span className="min-w-0">
-              <span className="block text-lg font-bold leading-tight text-slate-800">{c.err ? '—' : c.n}</span>
-              <span className="block truncate text-xs text-slate-500">{c.e.label}</span>
+              <span className="block text-lg font-bold leading-tight text-slate-800 dark:text-slate-100">{c.err ? '—' : c.n}</span>
+              <span className="block truncate text-xs text-slate-500 dark:text-slate-400">{c.e.label}</span>
             </span>
           </button>
         ))}
@@ -278,10 +298,10 @@ function buildMonthly(invoices, months) {
 
 function KpiCard({ icon, label, value, hint, tone }) {
   const ring = {
-    brand: 'bg-brand-50 text-brand-600',
-    amber: 'bg-amber-50 text-amber-600',
-    emerald: 'bg-emerald-50 text-emerald-600',
-    violet: 'bg-violet-50 text-violet-600',
+    brand: 'bg-brand-50 text-brand-600 dark:bg-brand-950/50 dark:text-brand-300',
+    amber: 'bg-amber-50 text-amber-600 dark:bg-amber-950/50 dark:text-amber-300',
+    emerald: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-300',
+    violet: 'bg-violet-50 text-violet-600 dark:bg-violet-950/50 dark:text-violet-300',
   }
   return (
     <div className="card flex items-center gap-4 p-4">
@@ -290,7 +310,7 @@ function KpiCard({ icon, label, value, hint, tone }) {
       </span>
       <div className="min-w-0">
         <div className="truncate text-xs font-medium uppercase tracking-wide text-slate-400">{label}</div>
-        <div className="truncate text-xl font-bold tabular-nums text-slate-800">{value}</div>
+        <div className="truncate text-xl font-bold tabular-nums text-slate-800 dark:text-slate-100">{value}</div>
         <div className="truncate text-xs text-slate-400">{hint}</div>
       </div>
     </div>
@@ -300,7 +320,7 @@ function KpiCard({ icon, label, value, hint, tone }) {
 function Panel({ title, children }) {
   return (
     <div className="card p-5">
-      <div className="mb-4 text-sm font-semibold text-slate-700">{title}</div>
+      <div className="mb-4 text-sm font-semibold text-slate-700 dark:text-slate-200">{title}</div>
       {children}
     </div>
   )
@@ -313,24 +333,24 @@ function Empty({ children }) {
 function RecentPanel({ title, entity, rows, onOpen, right }) {
   return (
     <div className="card">
-      <div className="border-b border-slate-100 px-5 py-3 text-sm font-semibold text-slate-700">{title}</div>
+      <div className="border-b border-slate-100 px-5 py-3 text-sm font-semibold text-slate-700 dark:border-slate-800 dark:text-slate-200">{title}</div>
       {rows.length === 0 ? (
         <div className="px-5 py-8 text-center text-sm text-slate-400">No records.</div>
       ) : (
-        <ul className="divide-y divide-slate-100">
+        <ul className="divide-y divide-slate-100 dark:divide-slate-800">
           {rows.map((r) => {
             const status = entity.status(r)
             return (
               <li
                 key={recordId(r)}
-                className="flex cursor-pointer items-center gap-3 px-5 py-3 hover:bg-brand-50/50"
+                className="flex cursor-pointer items-center gap-3 px-5 py-3 hover:bg-brand-50/50 dark:hover:bg-slate-800/50"
                 onClick={() => onOpen(r)}
               >
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-medium text-slate-800">{entity.title(r)}</div>
+                  <div className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">{entity.title(r)}</div>
                   <div className="truncate text-xs text-slate-400">{entity.subtitle(r)}</div>
                 </div>
-                <div className="text-right text-sm tabular-nums text-slate-600">{right(r)}</div>
+                <div className="text-right text-sm tabular-nums text-slate-600 dark:text-slate-300">{right(r)}</div>
                 <StatusBadge label={status.label} tone={status.tone} />
               </li>
             )

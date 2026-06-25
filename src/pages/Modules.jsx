@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { api } from '../api/ipc.js'
 import { useProfiles } from '../context/ProfileContext.jsx'
 import { ErrorState, Loading, StatusBadge } from '../components/ui.jsx'
@@ -48,9 +49,9 @@ export default function Modules() {
     <div className="space-y-5 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-slate-800">Modules</h1>
-          <p className="text-sm text-slate-500">
-            API modules enabled on <span className="font-medium text-slate-700">{activeProfile?.name}</span>
+          <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100">Modules</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            API modules enabled on <span className="font-medium text-slate-700 dark:text-slate-300">{activeProfile?.name}</span>
           </p>
         </div>
         <button className="btn-outline" onClick={load} disabled={loading}>↻ Refresh</button>
@@ -70,7 +71,7 @@ export default function Modules() {
             <Stat label="Host" value={data.host || '—'} small />
           </div>
 
-          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300">
             ℹ️ This lists modules that expose a REST API. Installed modules <strong>without</strong> an API
             (or with the API sub-feature disabled) won't appear here. Core vs custom is a best-effort
             classification based on standard Dolibarr module names.
@@ -100,9 +101,9 @@ export default function Modules() {
 
 function Stat({ label, value, tone = 'brand', small }) {
   const tones = {
-    brand: 'text-brand-700',
-    violet: 'text-violet-700',
-    slate: 'text-slate-700',
+    brand: 'text-brand-700 dark:text-brand-400',
+    violet: 'text-violet-700 dark:text-violet-400',
+    slate: 'text-slate-700 dark:text-slate-200',
   }
   return (
     <div className="card p-4">
@@ -115,6 +116,7 @@ function Stat({ label, value, tone = 'brand', small }) {
 }
 
 function Section({ title, modules, empty, customSection }) {
+  const navigate = useNavigate()
   return (
     <div>
       <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
@@ -127,10 +129,10 @@ function Section({ title, modules, empty, customSection }) {
           {modules.map((m) => (
             <div
               key={m.key}
-              className={`card p-4 ${customSection ? 'border-violet-200 ring-1 ring-violet-100' : ''}`}
+              className={`card p-4 ${customSection ? 'border-violet-200 ring-1 ring-violet-100 dark:border-violet-900 dark:ring-violet-900/40' : ''}`}
             >
               <div className="flex items-center justify-between gap-2">
-                <span className="truncate font-semibold text-slate-800">{m.name}</span>
+                <span className="truncate font-semibold text-slate-800 dark:text-slate-100">{m.name}</span>
                 {customSection ? (
                   <StatusBadge label="Custom" tone="blue" />
                 ) : (
@@ -140,7 +142,7 @@ function Section({ title, modules, empty, customSection }) {
               <div className="mt-1 text-xs text-slate-400">
                 {m.paths} endpoint{m.paths === 1 ? '' : 's'}
               </div>
-              <div className="mt-2 flex flex-wrap gap-1">
+              <div className="mt-2 flex flex-wrap items-center gap-1">
                 {m.methods.map((mt) => (
                   <span
                     key={mt}
@@ -149,6 +151,14 @@ function Section({ title, modules, empty, customSection }) {
                     {mt}
                   </span>
                 ))}
+                {m.methods.includes('GET') && (
+                  <button
+                    className="ml-auto rounded-md px-2 py-0.5 text-xs font-medium text-brand-700 hover:bg-brand-50 dark:text-brand-300 dark:hover:bg-brand-950/40"
+                    onClick={() => navigate(`/explore/${m.key}`)}
+                  >
+                    Browse →
+                  </button>
+                )}
               </div>
             </div>
           ))}

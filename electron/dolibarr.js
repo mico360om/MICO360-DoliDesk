@@ -112,6 +112,22 @@ async function getOne(profile, type, id) {
   return request(profile, `${def.endpoint}/${encodeURIComponent(id)}`)
 }
 
+// Generic list/get against an arbitrary API endpoint (used to browse custom
+// modules discovered via swagger, which aren't in the fixed entity registry).
+async function listRaw(profile, endpoint, opts = {}) {
+  const ep = '/' + String(endpoint).replace(/^\/+/, '')
+  const params = { limit: opts.limit ?? 50, page: opts.page ?? 0 }
+  if (opts.sortfield) params.sortfield = opts.sortfield
+  if (opts.sortorder) params.sortorder = opts.sortorder
+  const data = await request(profile, ep, { params })
+  return Array.isArray(data) ? data : []
+}
+
+async function getRaw(profile, endpoint, id) {
+  const ep = '/' + String(endpoint).replace(/^\/+/, '')
+  return request(profile, `${ep}/${encodeURIComponent(id)}`)
+}
+
 // Paginate through every record (up to `cap`) so totals/exports reflect the
 // whole dataset, not just the first page. Returns { rows, complete } where
 // complete=false means the cap was hit before exhausting the data.
@@ -245,19 +261,46 @@ async function downloadDocument(profile, type, originalFile) {
   }
 }
 
-// Convenience: find and download the record's PDF. Tries the document list
-// first, then falls back to the conventional <ref>/<ref>.pdf path.
+// Find and download the record's PDF. Tries every PDF in the document list,
+// then the conventional <ref>/<ref>.pdf path, collecting failures so the
+// error explains exactly what was attempted.
 async function downloadRecordPdf(profile, type, id, ref) {
-  const docs = await listDocuments(profile, type, id)
-  const pdf = docs.find((d) => /\.pdf$/i.test(d.name || d.relativename || ''))
-  if (pdf) {
-    const original = pdf.relativename || pdf.level1name ? `${pdf.level1name || ''}/${pdf.name}`.replace(/^\//, '') : pdf.name
-    return downloadDocument(profile, type, pdf.relativename || original || pdf.name)
+  const attempts = []
+  const tryGet = async (orig) => {
+    try {
+      return await downloadDocument(profile, type, orig)
+    } catch (e) {
+      attempts.push(`${orig} → ${e.message}`)
+      return null
+    }
   }
+
+  let docs = []
+  try {
+    docs = await listDocuments(profile, type, id)
+  } catch (e) {
+    attempts.push(`list documents → ${e.message}`)
+  }
+
+  const pdfs = docs.filter((d) => /\.pdf$/i.test(d.name || d.relativename || d.relativname || ''))
+  for (const pdf of pdfs) {
+    const rel =
+      pdf.relativename ||
+      pdf.relativname ||
+      (pdf.level1name ? `${pdf.level1name}/${pdf.name}` : pdf.name)
+    const got = await tryGet(rel)
+    if (got) return got
+  }
+
   if (ref) {
-    return downloadDocument(profile, type, `${ref}/${ref}.pdf`)
+    const got = await tryGet(`${ref}/${ref}.pdf`)
+    if (got) return got
   }
-  throw new Error('No PDF found for this record. Generate it in Dolibarr first.')
+
+  const detail = attempts.length ? ` Details: ${attempts.join('; ')}` : ''
+  throw new Error(
+    `No downloadable PDF was found. The document may not be generated yet — open the record in Dolibarr once to generate its PDF, then retry.${detail}`
+  )
 }
 
 // Fetch the configured company ("mysoc") details for the active instance —
@@ -341,42 +384,64 @@ async function getModules(profile) {
   }
 }
 
-// Exchange a username + password for a Dolibarr API token via the /login
-// endpoint. The token is the value stored (encrypted) and sent as DOLAPIKEY
-// on every subsequent request — the password is never persisted. Dolibarr
-// exposes login as a GET with query params on this/most instances.
+// Exchange a username + password for a Dolibarr API token via /login. The
+// token is what we store (encrypted) and send as DOLAPIKEY thereafter — the
+// password is never persisted. We POST first so the password travels in the
+// request body (not the URL / server access logs), and fall back to GET for
+// older Dolibarr builds whose /login route is GET-only.
 async function login(url, loginName, password, reset) {
   if (!url) throw new Error('No API URL provided')
   if (!loginName || !password) throw new Error('Enter both the login and password.')
+  const base = apiBase(url)
 
-  const params = { login: loginName, password }
-  if (reset) params.reset = 1
-  const target = apiBase(url) + '/login' + buildQuery(params)
+  async function attempt(method) {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 15000)
+    const opts = { method, headers: { Accept: 'application/json' }, signal: controller.signal }
+    let target = base + '/login'
+    if (method === 'POST') {
+      opts.headers['Content-Type'] = 'application/json'
+      const payload = { login: loginName, password }
+      if (reset) payload.reset = 1
+      opts.body = JSON.stringify(payload)
+    } else {
+      const params = { login: loginName, password }
+      if (reset) params.reset = 1
+      target += buildQuery(params)
+    }
+    try {
+      const res = await fetch(target, opts)
+      const text = await res.text()
+      let body
+      try {
+        body = text ? JSON.parse(text) : null
+      } catch {
+        body = text
+      }
+      return { res, body }
+    } finally {
+      clearTimeout(timer)
+    }
+  }
 
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), 15000)
-  let res
+  let result
   try {
-    res = await fetch(target, { headers: { Accept: 'application/json' }, signal: controller.signal })
+    result = await attempt('POST')
+    // 404/405 → route doesn't accept POST; retry with GET.
+    if (result.res.status === 404 || result.res.status === 405) result = await attempt('GET')
   } catch (err) {
-    clearTimeout(timer)
     if (err.name === 'AbortError') throw new Error('Login timed out — check the API URL.')
-    throw new Error('Could not reach the server: ' + err.message)
-  }
-  clearTimeout(timer)
-
-  const text = await res.text()
-  let body
-  try {
-    body = text ? JSON.parse(text) : null
-  } catch {
-    body = text
+    try {
+      result = await attempt('GET')
+    } catch (e2) {
+      if (e2.name === 'AbortError') throw new Error('Login timed out — check the API URL.')
+      throw new Error('Could not reach the server: ' + e2.message)
+    }
   }
 
+  const { res, body } = result
   const token = body && body.success && body.success.token
   if (res.ok && token) return token
-
-  // Surface the cleanest message Dolibarr gives us.
   if (res.status === 403) throw new Error('Login failed — incorrect login or password.')
   const msg =
     (body && body.error && (body.error.message || body.error)) ||
@@ -411,7 +476,7 @@ async function testConnection(profile) {
 }
 
 module.exports = {
-  request, list, listAll, getOne, resolveThirdparties, clearCaches,
+  request, list, listAll, getOne, listRaw, getRaw, resolveThirdparties, clearCaches,
   login, getModules, getCompany, testConnection, ENTITIES, apiBase,
   listDocuments, downloadDocument, downloadRecordPdf,
 }

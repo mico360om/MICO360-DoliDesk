@@ -17,6 +17,8 @@ contextBridge.exposeInMainWorld('dolidesk', {
   api: {
     list: (type, opts) => ipcRenderer.invoke('api:list', type, opts),
     listAll: (type, opts) => ipcRenderer.invoke('api:listAll', type, opts),
+    listRaw: (endpoint, opts) => ipcRenderer.invoke('api:listRaw', endpoint, opts),
+    getRaw: (endpoint, id) => ipcRenderer.invoke('api:getRaw', endpoint, id),
     get: (type, id) => ipcRenderer.invoke('api:get', type, id),
     resolveThirdparties: (ids) => ipcRenderer.invoke('api:resolveThirdparties', ids),
     modules: () => ipcRenderer.invoke('api:modules'),

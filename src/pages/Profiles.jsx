@@ -35,8 +35,8 @@ export default function Profiles() {
     <div className="mx-auto max-w-4xl p-6">
       <div className="mb-5 flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-slate-800">Profiles</h1>
-          <p className="text-sm text-slate-500">Manage your Dolibarr accounts and API connections.</p>
+          <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100">Profiles</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Manage your Dolibarr accounts and API connections.</p>
         </div>
         {mode === null && (
           <button className="btn-primary" onClick={() => setMode('add')}>
@@ -47,7 +47,7 @@ export default function Profiles() {
 
       {(mode === 'add' || editing) && (
         <div className="card mb-6 p-6">
-          <h2 className="mb-4 text-base font-semibold text-slate-700">
+          <h2 className="mb-4 text-base font-semibold text-slate-700 dark:text-slate-200">
             {editing ? `Edit “${editing.name}”` : 'Add a new profile'}
           </h2>
           <ProfileForm
@@ -84,14 +84,14 @@ export default function Profiles() {
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="truncate font-semibold text-slate-800">{p.name}</span>
+                    <span className="truncate font-semibold text-slate-800 dark:text-slate-100">{p.name}</span>
                     {active && (
-                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
                         Active
                       </span>
                     )}
                   </div>
-                  <div className="truncate text-sm text-slate-500">{p.url}</div>
+                  <div className="truncate text-sm text-slate-500 dark:text-slate-400">{p.url}</div>
                   {res && (
                     <div className={`mt-1 text-xs ${res.ok ? 'text-emerald-600' : 'text-rose-600'}`}>
                       {res.ok

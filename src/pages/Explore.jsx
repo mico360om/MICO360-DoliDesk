@@ -1,0 +1,189 @@
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
+import { api } from '../api/ipc.js'
+import { EmptyState, ErrorState, Loading, SafeHtml } from '../components/ui.jsx'
+import { formatDate, formatMoney, humanizeKey } from '../lib/format.js'
+
+// Generic browser for any Dolibarr module endpoint (used for custom modules
+// that aren't in the curated entity registry). Columns and fields are
+// inferred from the data — formatted, never raw JSON.
+
+const PREFERRED = ['ref', 'label', 'name', 'title', 'code', 'code_client', 'date', 'total_ttc', 'price', 'status', 'statut']
+const SKIP = new Set(['entity', 'import_key', 'array_options', 'array_languages', 'lines', 'linkedObjects', 'linkedObjectsIds', 'canvas', 'fields', 'context'])
+const HTML_FIELDS = new Set(['note_public', 'note_private', 'note', 'description'])
+const isHtml = (v) => typeof v === 'string' && /<[a-z][\s\S]*>/i.test(v)
+const recId = (r) => r.id ?? r.rowid ?? r.ref
+
+function fmt(key, v) {
+  if (v === null || v === undefined || v === '') return '—'
+  if (typeof v === 'object') return ''
+  if (/(^|_)date/i.test(key) && /^\d+$/.test(String(v))) return formatDate(v)
+  if (/(total|price|amount|montant|_ttc|_ht)/i.test(key)) return formatMoney(v)
+  return String(v)
+}
+
+function inferColumns(rows) {
+  const keys = new Set()
+  for (const r of rows.slice(0, 15)) {
+    for (const [k, v] of Object.entries(r)) {
+      if (v !== null && v !== undefined && typeof v !== 'object' && !SKIP.has(k)) keys.add(k)
+    }
+  }
+  const present = [...keys]
+  const picked = PREFERRED.filter((k) => keys.has(k))
+  for (const k of present) {
+    if (picked.length >= 6) break
+    if (!picked.includes(k)) picked.push(k)
+  }
+  return picked.slice(0, 6)
+}
+
+export function ExploreList() {
+  const { module } = useParams()
+  const navigate = useNavigate()
+  const [rows, setRows] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [page, setPage] = useState(0)
+  const pageSize = 50
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      setRows(await api.listRaw(module, { limit: pageSize, page }))
+    } catch (e) {
+      setError(e.message)
+      setRows([])
+    } finally {
+      setLoading(false)
+    }
+  }, [module, page])
+
+  useEffect(() => setPage(0), [module])
+  useEffect(() => { load() }, [load])
+
+  const columns = useMemo(() => inferColumns(rows), [rows])
+
+  return (
+    <div className="flex h-full flex-col">
+      <div className="border-b border-slate-200 bg-white px-6 pb-4 pt-5 dark:border-slate-800 dark:bg-slate-900">
+        <button className="btn-ghost mb-2 -ml-2" onClick={() => navigate('/modules')}>← Modules</button>
+        <div className="flex items-center justify-between">
+          <h1 className="flex items-center gap-2 text-xl font-bold capitalize text-slate-800 dark:text-slate-100">
+            🧩 {module}
+            <span className="ml-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-sm font-medium text-slate-500 dark:bg-slate-800 dark:text-slate-400">{rows.length}</span>
+          </h1>
+          <button className="btn-outline" onClick={load} disabled={loading}>↻ Refresh</button>
+        </div>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-auto p-6">
+        {loading ? (
+          <Loading label={`Loading ${module}…`} />
+        ) : error ? (
+          <ErrorState message={error} onRetry={load} />
+        ) : rows.length === 0 ? (
+          <EmptyState icon="🧩" title="No records" subtitle={`The ${module} endpoint returned nothing on this page.`} />
+        ) : (
+          <div className="card overflow-x-auto">
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400">
+                  {columns.map((c) => (
+                    <th key={c} className="px-4 py-3 font-semibold">{humanizeKey(c)}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr
+                    key={recId(r)}
+                    className="cursor-pointer border-b border-slate-100 last:border-0 hover:bg-brand-50/50 dark:border-slate-800 dark:hover:bg-slate-800/50"
+                    onClick={() => navigate(`/explore/${module}/${recId(r)}`)}
+                  >
+                    {columns.map((c, i) => (
+                      <td key={c} className={`px-4 py-3 ${i === 0 ? 'font-medium text-slate-800 dark:text-slate-100' : 'text-slate-600 dark:text-slate-300'}`}>
+                        {fmt(c, r[c])}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {!loading && !error && rows.length > 0 && (
+        <div className="flex items-center justify-between border-t border-slate-200 bg-white px-6 py-3 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
+          <span>Page {page + 1}</span>
+          <div className="flex gap-2">
+            <button className="btn-outline" disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>← Previous</button>
+            <button className="btn-outline" disabled={rows.length < pageSize} onClick={() => setPage((p) => p + 1)}>Next →</button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export function ExploreDetail() {
+  const { module, id } = useParams()
+  const navigate = useNavigate()
+  const [record, setRecord] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    setError(null)
+    api
+      .getRaw(module, id)
+      .then((d) => !cancelled && setRecord(d))
+      .catch((e) => !cancelled && setError(e.message))
+      .finally(() => !cancelled && setLoading(false))
+    return () => { cancelled = true }
+  }, [module, id])
+
+  const fields = useMemo(() => {
+    if (!record) return []
+    return Object.entries(record).filter(([k, v]) => !SKIP.has(k) && v !== null && v !== undefined && v !== '' && typeof v !== 'object')
+  }, [record])
+
+  return (
+    <div className="mx-auto max-w-4xl p-6">
+      <button className="btn-ghost mb-4 -ml-2" onClick={() => navigate(`/explore/${module}`)}>← Back to {module}</button>
+      {loading ? (
+        <Loading label="Loading record…" />
+      ) : error ? (
+        <ErrorState message={error} onRetry={() => navigate(0)} />
+      ) : !record ? (
+        <ErrorState title="Not found" />
+      ) : (
+        <>
+          <div className="card mb-5 p-6">
+            <div className="text-sm text-slate-400 capitalize">🧩 {module} · #{recId(record)}</div>
+            <h1 className="mt-1 text-2xl font-bold text-slate-800 dark:text-slate-100">
+              {record.ref || record.label || record.name || record.title || `#${recId(record)}`}
+            </h1>
+          </div>
+          <div className="card mb-5 p-6">
+            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500">Fields</h2>
+            <dl className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
+              {fields.map(([k, v]) => (
+                <div key={k} className="min-w-0">
+                  <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">{humanizeKey(k)}</dt>
+                  <dd className="mt-0.5 break-words text-sm text-slate-800 dark:text-slate-200">
+                    {HTML_FIELDS.has(k) && isHtml(v) ? <SafeHtml html={v} /> : fmt(k, v)}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}

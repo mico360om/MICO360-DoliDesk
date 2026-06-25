@@ -154,6 +154,8 @@ function registerIpc() {
   ipcMain.handle('api:list', wrap((type, opts) => dolibarr.list(activeOrThrow(), type, opts)))
   ipcMain.handle('api:get', wrap((type, id) => dolibarr.getOne(activeOrThrow(), type, id)))
   ipcMain.handle('api:listAll', wrap((type, opts) => dolibarr.listAll(activeOrThrow(), type, opts)))
+  ipcMain.handle('api:listRaw', wrap((endpoint, opts) => dolibarr.listRaw(activeOrThrow(), endpoint, opts)))
+  ipcMain.handle('api:getRaw', wrap((endpoint, id) => dolibarr.getRaw(activeOrThrow(), endpoint, id)))
   ipcMain.handle('api:resolveThirdparties', wrap((ids) => dolibarr.resolveThirdparties(activeOrThrow(), ids)))
   ipcMain.handle('api:modules', wrap(() => dolibarr.getModules(activeOrThrow())))
   ipcMain.handle('api:company', wrap(() => dolibarr.getCompany(activeOrThrow())))
