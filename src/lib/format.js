@@ -7,6 +7,41 @@ export function toNumber(v) {
   return Number.isFinite(n) ? n : null
 }
 
+// The company's base currency (from /setup/company). Set once the active
+// profile's company info loads; used to label aggregate totals and to decide
+// when a document is in a foreign currency.
+let BASE_CURRENCY = null
+export function setBaseCurrency(code) {
+  BASE_CURRENCY = code ? String(code).toUpperCase() : null
+}
+export function getBaseCurrency() {
+  return BASE_CURRENCY
+}
+
+// Format a record's amount in the correct currency. Dolibarr stores base-
+// currency totals in `total_ht`/`total_ttc` and the document-currency totals
+// in `multicurrency_total_ht`/`multicurrency_total_ttc`. When the document is
+// in a foreign currency we show its own amount + code; otherwise the base.
+export function recordMoney(record, field) {
+  if (!record) return '—'
+  const mc = record.multicurrency_code
+  const mcVal = record['multicurrency_' + field]
+  if (mc && BASE_CURRENCY && mc !== BASE_CURRENCY && mcVal !== null && mcVal !== undefined && mcVal !== '') {
+    return formatMoney(mcVal, mc)
+  }
+  return formatMoney(record[field], BASE_CURRENCY || mc)
+}
+
+// Same idea for a line item within a document.
+export function lineMoney(line, record, field) {
+  const mc = record && record.multicurrency_code
+  const mcVal = line['multicurrency_' + field]
+  if (mc && BASE_CURRENCY && mc !== BASE_CURRENCY && mcVal !== null && mcVal !== undefined && mcVal !== '') {
+    return formatMoney(mcVal, mc)
+  }
+  return formatMoney(line[field], BASE_CURRENCY || mc)
+}
+
 export function formatMoney(v, currency) {
   const n = toNumber(v)
   if (n === null) return '—'

@@ -1,4 +1,4 @@
-import { formatMoney, formatDate, formatNumber, toNumber, toDate } from './format.js'
+import { formatMoney, formatDate, formatNumber, toNumber, toDate, recordMoney, getBaseCurrency } from './format.js'
 
 // Single source of truth for every supported Dolibarr record type. The
 // list page, detail page and dashboard are all generic and read from here,
@@ -82,24 +82,27 @@ function moneySummary(rows, { dateField, ttc = 'total_ttc', ht = 'total_ht', unp
   }
   const sum = (rs, f) => rs.reduce((s, r) => s + (toNumber(r[f]) || 0), 0)
   const todays = dateField ? rows.filter(isToday) : []
+  // Aggregates use base-currency totals (normalised across documents) and are
+  // labelled with the company's base currency.
+  const cur = getBaseCurrency()
 
   const metrics = []
   if (dateField) {
     metrics.push({
       label: 'Today',
-      value: formatMoney(sum(todays, ttc)),
+      value: formatMoney(sum(todays, ttc), cur),
       sub: `${todays.length} record${todays.length === 1 ? '' : 's'}`,
       accent: 'brand',
     })
   }
   metrics.push({ label: 'Records', value: String(rows.length), accent: 'slate' })
-  metrics.push({ label: 'Total (excl. tax)', value: formatMoney(sum(rows, ht)), accent: 'slate' })
-  metrics.push({ label: 'Total (incl. tax)', value: formatMoney(sum(rows, ttc)), accent: 'emerald' })
+  metrics.push({ label: 'Total (excl. tax)', value: formatMoney(sum(rows, ht), cur), accent: 'slate' })
+  metrics.push({ label: 'Total (incl. tax)', value: formatMoney(sum(rows, ttc), cur), accent: 'emerald' })
   if (unpaid) {
     const out = rows.filter(unpaid)
     metrics.push({
       label: 'Outstanding',
-      value: formatMoney(sum(out, ttc)),
+      value: formatMoney(sum(out, ttc), cur),
       sub: `${out.length} unpaid`,
       accent: 'amber',
     })
@@ -116,7 +119,7 @@ function productSummary(rows) {
     { label: 'Products', value: String(rows.length), accent: 'slate' },
     { label: 'On sale', value: String(onSale), accent: 'emerald' },
     { label: 'Total stock', value: formatNumber(stock), accent: 'slate' },
-    { label: 'Stock value', value: formatMoney(value), accent: 'brand' },
+    { label: 'Stock value', value: formatMoney(value, getBaseCurrency()), accent: 'brand' },
   ]
 }
 
@@ -182,9 +185,9 @@ export const ENTITIES = {
       { key: 'ref', label: 'Reference', grow: true, render: (r) => r.ref || '—' },
       { key: 'date', label: 'Date', render: (r) => formatDate(r.date) },
       { key: 'date_lim_reglement', label: 'Due date', render: (r) => formatDate(r.date_lim_reglement) },
-      { key: 'total_ht', label: 'Total (excl.)', align: 'right', render: (r) => formatMoney(r.total_ht, r.multicurrency_code) },
-      { key: 'total_tva', label: 'VAT', align: 'right', render: (r) => formatMoney(r.total_tva, r.multicurrency_code) },
-      { key: 'total_ttc', label: 'Total (incl.)', align: 'right', render: (r) => formatMoney(r.total_ttc, r.multicurrency_code) },
+      { key: 'total_ht', label: 'Total (excl.)', align: 'right', render: (r) => recordMoney(r, 'total_ht') },
+      { key: 'total_tva', label: 'VAT', align: 'right', render: (r) => recordMoney(r, 'total_tva') },
+      { key: 'total_ttc', label: 'Total (incl.)', align: 'right', render: (r) => recordMoney(r, 'total_ttc') },
     ],
     detailFields: ['ref', 'ref_client', 'date', 'date_lim_reglement', 'total_ht', 'total_tva', 'total_ttc', 'multicurrency_code'],
   },
@@ -206,7 +209,7 @@ export const ENTITIES = {
       { key: 'ref', label: 'Ref', render: (r) => r.ref || '—' },
       { key: 'label', label: 'Label', grow: true, render: (r) => r.label || '—' },
       { key: 'type', label: 'Type', render: (r) => (Number(r.type) === 1 ? 'Service' : 'Product') },
-      { key: 'price', label: 'Price (excl.)', align: 'right', render: (r) => formatMoney(r.price) },
+      { key: 'price', label: 'Price (excl.)', align: 'right', render: (r) => formatMoney(r.price, getBaseCurrency()) },
       { key: 'stock', label: 'Stock', align: 'right', render: (r) => (r.stock_reel != null ? formatNumber(r.stock_reel) : '—') },
     ],
     detailFields: ['ref', 'label', 'description', 'type', 'price', 'price_ttc', 'tva_tx', 'stock_reel', 'barcode', 'weight'],
@@ -231,8 +234,8 @@ export const ENTITIES = {
     columns: [
       { key: 'ref', label: 'Reference', grow: true, render: (r) => r.ref || '—' },
       { key: 'date', label: 'Date', render: (r) => formatDate(r.date_commande || r.date) },
-      { key: 'total_ht', label: 'Total (excl.)', align: 'right', render: (r) => formatMoney(r.total_ht, r.multicurrency_code) },
-      { key: 'total_ttc', label: 'Total (incl.)', align: 'right', render: (r) => formatMoney(r.total_ttc, r.multicurrency_code) },
+      { key: 'total_ht', label: 'Total (excl.)', align: 'right', render: (r) => recordMoney(r, 'total_ht') },
+      { key: 'total_ttc', label: 'Total (incl.)', align: 'right', render: (r) => recordMoney(r, 'total_ttc') },
     ],
     detailFields: ['ref', 'ref_client', 'date_commande', 'total_ht', 'total_tva', 'total_ttc', 'multicurrency_code'],
   },
@@ -256,8 +259,8 @@ export const ENTITIES = {
     columns: [
       { key: 'ref', label: 'Reference', grow: true, render: (r) => r.ref || '—' },
       { key: 'date', label: 'Date', render: (r) => formatDate(r.date) },
-      { key: 'total_ht', label: 'Total (excl.)', align: 'right', render: (r) => formatMoney(r.total_ht, r.multicurrency_code) },
-      { key: 'total_ttc', label: 'Total (incl.)', align: 'right', render: (r) => formatMoney(r.total_ttc, r.multicurrency_code) },
+      { key: 'total_ht', label: 'Total (excl.)', align: 'right', render: (r) => recordMoney(r, 'total_ht') },
+      { key: 'total_ttc', label: 'Total (incl.)', align: 'right', render: (r) => recordMoney(r, 'total_ttc') },
     ],
     detailFields: ['ref', 'ref_client', 'date', 'fin_validite', 'total_ht', 'total_tva', 'total_ttc', 'multicurrency_code'],
   },

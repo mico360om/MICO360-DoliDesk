@@ -10,7 +10,8 @@ import { Donut, BarChart, HBars, Legend } from '../components/charts.jsx'
 const CAP = 1000 // max records pulled per entity for accurate headline figures
 
 export default function Dashboard() {
-  const { activeProfile, activeId } = useProfiles()
+  const { activeProfile, activeId, company } = useProfiles()
+  const baseCurrency = company?.currency_code || company?.currency || undefined
   const navigate = useNavigate()
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -82,7 +83,7 @@ export default function Dashboard() {
     ].filter((s) => s.value > 0)
 
     // Monthly invoiced (incl. tax) for the trailing 6 months present in data.
-    const monthly = buildMonthly(inv, 6)
+    const monthly = buildMonthly(inv, 6, baseCurrency)
 
     // Top customers by invoiced amount (map socid -> third-party name).
     const nameById = new Map()
@@ -98,7 +99,7 @@ export default function Dashboard() {
         sid,
         fallback: nameById.get(sid),
         value: val,
-        display: formatMoney(val),
+        display: formatMoney(val, baseCurrency),
       }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 5)
@@ -115,7 +116,7 @@ export default function Dashboard() {
         proposals: data.proposals?.error,
       },
     }
-  }, [data])
+  }, [data, baseCurrency])
 
   // Resolve real third-party names for the top customers (best-effort).
   useEffect(() => {
@@ -202,9 +203,9 @@ export default function Dashboard() {
 
       {/* KPI row */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <KpiCard icon="💰" tone="brand" label="Invoiced (incl. tax)" value={formatMoney(stats.invoiceTotal)} hint={`${stats.inv.length} invoices`} />
-        <KpiCard icon="⏳" tone="amber" label="Outstanding" value={formatMoney(stats.unpaidTotal)} hint={`${stats.unpaid.length} unpaid`} />
-        <KpiCard icon="📑" tone="emerald" label="Orders (incl. tax)" value={formatMoney(stats.orderTotal)} hint={`${stats.orders.length} orders`} />
+        <KpiCard icon="💰" tone="brand" label="Invoiced (incl. tax)" value={formatMoney(stats.invoiceTotal, baseCurrency)} hint={`${stats.inv.length} invoices`} />
+        <KpiCard icon="⏳" tone="amber" label="Outstanding" value={formatMoney(stats.unpaidTotal, baseCurrency)} hint={`${stats.unpaid.length} unpaid`} />
+        <KpiCard icon="📑" tone="emerald" label="Orders (incl. tax)" value={formatMoney(stats.orderTotal, baseCurrency)} hint={`${stats.orders.length} orders`} />
         <KpiCard icon="🏢" tone="violet" label="Third parties" value={count('thirdparties')} hint="customers & suppliers" />
       </div>
 
@@ -282,7 +283,7 @@ function sum(rows, field) {
 }
 
 // Build trailing-N-month buckets of invoiced total (incl. tax).
-function buildMonthly(invoices, months) {
+function buildMonthly(invoices, months, currency) {
   const now = new Date()
   const buckets = []
   for (let i = months - 1; i >= 0; i--) {
@@ -301,7 +302,7 @@ function buildMonthly(invoices, months) {
     const b = index.get(key)
     if (b) b.value += toNumber(r.total_ttc) || 0
   }
-  return buckets.map((b) => ({ ...b, display: formatMoney(b.value) }))
+  return buckets.map((b) => ({ ...b, display: formatMoney(b.value, currency) }))
 }
 
 // ---- presentational --------------------------------------------------------

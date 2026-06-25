@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { profiles as profilesApi, api } from '../api/ipc.js'
+import { setBaseCurrency } from '../lib/format.js'
 
 const ProfileContext = createContext(null)
 
@@ -36,9 +37,14 @@ export function ProfileProvider({ children }) {
       return
     }
     setCompany(null)
+    setBaseCurrency(null)
     api
       .company()
-      .then((c) => !cancelled && setCompany(c))
+      .then((c) => {
+        if (cancelled) return
+        setCompany(c)
+        setBaseCurrency(c && (c.currency_code || c.currency))
+      })
       .catch(() => !cancelled && setCompany(null))
     return () => {
       cancelled = true

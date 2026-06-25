@@ -6,7 +6,7 @@ import { ErrorState, SafeHtml, Skeleton, Spinner, StatusBadge } from '../compone
 import { useT } from '../lib/i18n.js'
 import { useToast } from '../context/ToastContext.jsx'
 import { getNeighbours } from '../lib/navCache.js'
-import { humanizeKey, formatMoney, formatNumber } from '../lib/format.js'
+import { humanizeKey, formatNumber, recordMoney, lineMoney } from '../lib/format.js'
 
 // Content fields Dolibarr stores as HTML — rendered (sanitised) rather than escaped.
 const HTML_FIELDS = new Set(['note_public', 'note_private', 'note', 'description'])
@@ -269,12 +269,13 @@ function DetailSkeleton() {
 // or proposal) as a table, with a totals footer.
 function LineItems({ lines, record }) {
   const desc = (l) => l.label || l.product_label || l.desc || l.description || l.ref || '—'
-  const currency = record.multicurrency_code
+  const docCurrency = record.multicurrency_code
 
   return (
     <div className="card mb-5 overflow-hidden">
-      <div className="border-b border-slate-100 px-6 py-4 text-sm font-semibold text-slate-700 dark:border-slate-800 dark:text-slate-200">
-        Line items <span className="text-slate-400">({lines.length})</span>
+      <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 text-sm font-semibold text-slate-700 dark:border-slate-800 dark:text-slate-200">
+        <span>Line items <span className="text-slate-400">({lines.length})</span></span>
+        {docCurrency && <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500 dark:bg-slate-800 dark:text-slate-400">{docCurrency}</span>}
       </div>
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-sm">
@@ -295,12 +296,12 @@ function LineItems({ lines, record }) {
                   {desc(l)}
                 </td>
                 <td className="px-3 py-2.5 text-right tabular-nums text-slate-600 dark:text-slate-300">{formatNumber(l.qty)}</td>
-                <td className="px-3 py-2.5 text-right tabular-nums text-slate-600 dark:text-slate-300">{formatMoney(l.subprice, currency)}</td>
+                <td className="px-3 py-2.5 text-right tabular-nums text-slate-600 dark:text-slate-300">{lineMoney(l, record, 'subprice')}</td>
                 <td className="px-3 py-2.5 text-right tabular-nums text-slate-500">
                   {l.tva_tx != null && l.tva_tx !== '' ? `${l.tva_tx}%` : '—'}
                 </td>
                 <td className="px-6 py-2.5 text-right font-medium tabular-nums text-slate-800 dark:text-slate-100">
-                  {formatMoney(l.total_ht, currency)}
+                  {lineMoney(l, record, 'total_ht')}
                 </td>
               </tr>
             ))}
@@ -311,7 +312,7 @@ function LineItems({ lines, record }) {
                 Total (incl. tax)
               </td>
               <td className="px-6 py-3 text-right text-base font-bold tabular-nums text-slate-800 dark:text-slate-100">
-                {formatMoney(record.total_ttc, currency)}
+                {recordMoney(record, 'total_ttc')}
               </td>
             </tr>
           </tfoot>

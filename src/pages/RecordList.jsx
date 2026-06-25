@@ -33,7 +33,7 @@ export default function RecordList() {
   const { type } = useParams()
   const entity = getEntity(type)
   const navigate = useNavigate()
-  const { activeId } = useProfiles()
+  const { activeId, company } = useProfiles()
   const { toast } = useToast()
 
   const [rows, setRows] = useState([])
@@ -189,7 +189,7 @@ export default function RecordList() {
     }
     return out
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, entity, statusFilter, dateRange, sort, allColumns, names])
+  }, [rows, entity, statusFilter, dateRange, sort, allColumns, names, company])
 
   // Expose the current ordered ids so the detail view can page prev/next.
   useEffect(() => {
