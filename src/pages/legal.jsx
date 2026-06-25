@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { BRAND } from '../lib/brand.js'
 import { appInfo } from '../api/ipc.js'
+import Logo from '../components/Logo.jsx'
 
 // Shared building blocks for the long-form content pages.
 function Prose({ children }) {
@@ -35,7 +36,7 @@ export function AboutPage() {
   return (
     <div className="max-w-2xl">
       <div className="mb-5 flex items-center gap-4">
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-600 text-2xl font-black text-white">M</div>
+        <Logo panel className="h-12" />
         <div>
           <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100">{BRAND.appName}</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">Version {version} · by {BRAND.company}</p>

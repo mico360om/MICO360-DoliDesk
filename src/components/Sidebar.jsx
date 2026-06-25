@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import { ENTITY_LIST } from '../lib/entities.js'
 import { useT } from '../lib/i18n.js'
+import Logo from './Logo.jsx'
 
 const linkClass = ({ isActive }) =>
   `flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition ${
@@ -11,14 +12,9 @@ export default function Sidebar() {
   const t = useT()
   return (
     <aside className="flex w-60 flex-col bg-slate-900 text-slate-100">
-      <div className="flex items-center gap-2.5 px-5 py-5">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-500 text-lg font-black text-white">
-          M
-        </div>
-        <div className="leading-tight">
-          <div className="text-sm font-bold tracking-wide">MICO360</div>
-          <div className="text-xs text-slate-400">DoliDesk</div>
-        </div>
+      <div className="px-4 py-5">
+        <Logo panel className="h-9" />
+        <div className="mt-2 px-1 text-xs font-medium text-slate-400">DoliDesk</div>
       </div>
 
       <nav className="flex-1 space-y-1 px-3 py-2">

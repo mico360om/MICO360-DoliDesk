@@ -1,6 +1,6 @@
 {
   "name": "mico360-dolidesk",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "MICO360 DoliDesk — a desktop client for the Dolibarr ERP/CRM API",
   "author": "MICO360",
   "license": "MIT",
@@ -10,6 +10,7 @@
     "dev:vite": "vite",
     "dev:electron": "wait-on tcp:5173 && cross-env NODE_ENV=development electron .",
     "build": "vite build",
+    "icons": "node scripts/make-icons.mjs",
     "start": "cross-env NODE_ENV=production electron .",
     "dist": "vite build && electron-builder"
   },
@@ -27,7 +28,9 @@
     "cross-env": "^7.0.3",
     "electron": "^32.1.2",
     "electron-builder": "^25.0.5",
+    "png-to-ico": "^2.1.8",
     "postcss": "^8.4.47",
+    "sharp": "^0.33.5",
     "tailwindcss": "^3.4.13",
     "vite": "^5.4.8",
     "wait-on": "^8.0.1"
@@ -37,11 +40,14 @@
     "productName": "MICO360 DoliDesk",
     "files": [
       "dist/**/*",
-      "electron/**/*"
+      "electron/**/*",
+      "build/icon.*"
     ],
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "build"
     },
+    "icon": "build/icon.ico",
     "publish": [
       {
         "provider": "github",
@@ -50,7 +56,8 @@
       }
     ],
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "build/icon.ico"
     },
     "nsis": {
       "oneClick": false,

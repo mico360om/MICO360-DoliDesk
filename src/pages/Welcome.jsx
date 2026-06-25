@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import ProfileForm from '../components/ProfileForm.jsx'
+import Logo from '../components/Logo.jsx'
 import { useProfiles } from '../context/ProfileContext.jsx'
 
 // First-run screen shown when no profiles exist yet.
@@ -11,8 +12,8 @@ export default function Welcome() {
     <div className="grid h-full place-items-center overflow-y-auto bg-gradient-to-br from-slate-900 to-brand-900 p-6">
       <div className="w-full max-w-lg">
         <div className="mb-6 text-center text-white">
-          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-500 text-2xl font-black shadow-lg">
-            M
+          <div className="mb-4 flex justify-center">
+            <Logo panel className="h-14" />
           </div>
           <h1 className="text-2xl font-bold">Welcome to MICO360 DoliDesk</h1>
           <p className="mt-1 text-sm text-slate-300">
