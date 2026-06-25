@@ -151,7 +151,7 @@ function Section({ title, modules, empty, customSection }) {
                 {m.methods.includes('GET') && (
                   <button
                     className="ml-auto rounded-md px-2 py-0.5 text-xs font-medium text-brand-700 hover:bg-brand-50 dark:text-brand-300 dark:hover:bg-brand-950/40"
-                    onClick={() => navigate(`/explore/${m.key}`)}
+                    onClick={() => navigate(m.key.includes('statement') ? '/statements' : `/explore/${m.key}`)}
                   >
                     Browse →
                   </button>

@@ -6,7 +6,7 @@ const SettingsContext = createContext(null)
 const RTL_LANGS = new Set(['ar', 'he', 'fa', 'ur'])
 
 const FALLBACK = {
-  display: { theme: 'system', density: 'comfortable', zoom: 100, dashboardLayout: 'default', language: 'en' },
+  display: { theme: 'system', density: 'comfortable', zoom: 100, dashboardLayout: 'default', language: 'en', hiddenMenu: [] },
   updates: { autoUpdate: true, checkOnStartup: true },
   security: { lockEnabled: false, maskApiKey: true, hasPin: false },
   notifications: { updates: true, apiErrors: true, syncComplete: true },

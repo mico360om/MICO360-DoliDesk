@@ -1,6 +1,6 @@
 {
   "name": "mico360-dolidesk",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "MICO360 DoliDesk — a desktop client for the Dolibarr ERP/CRM API",
   "author": "MICO360",
   "license": "MIT",

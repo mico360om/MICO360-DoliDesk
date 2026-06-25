@@ -4,6 +4,7 @@ import { ENTITY_LIST, getEntity } from '../lib/entities.js'
 import { getModuleMeta, NON_BROWSABLE } from '../lib/moduleMeta.js'
 import { useT } from '../lib/i18n.js'
 import { useProfiles } from '../context/ProfileContext.jsx'
+import { useSettings } from '../context/SettingsContext.jsx'
 import Logo from './Logo.jsx'
 
 const COLLAPSE_KEY = 'dolidesk:sidebar-collapsed'
@@ -18,7 +19,11 @@ function linkClass(collapsed) {
 
 export default function Sidebar() {
   const t = useT()
-  const { companyLogo, moduleList } = useProfiles()
+  const { companyLogo, moduleList, modules } = useProfiles()
+  const { settings } = useSettings()
+  const hidden = useMemo(() => new Set(settings.display.hiddenMenu || []), [settings.display.hiddenMenu])
+  // Statements live in the bottom nav. Optimistic while modules are loading.
+  const hasStatements = !modules || [...modules].some((k) => k.includes('statement'))
   const [userPref, setUserPref] = useState(() => localStorage.getItem(COLLAPSE_KEY) === '1')
   const [narrow, setNarrow] = useState(() => window.innerWidth < NARROW)
 
@@ -42,14 +47,11 @@ export default function Sidebar() {
   const navItems = useMemo(() => {
     if (moduleList && moduleList.length) {
       return moduleList
-        .filter((m) => m.methods.includes('GET') && !NON_BROWSABLE.has(m.key))
+        .filter((m) => m.methods.includes('GET') && !NON_BROWSABLE.has(m.key) && !m.key.includes('statement'))
         .map((m) => {
           const curated = getEntity(m.key)
           const meta = getModuleMeta(m.key)
-          let to
-          if (m.key === 'mico360statements') to = '/statements'
-          else if (curated) to = `/records/${m.key}`
-          else to = `/explore/${m.key}`
+          const to = curated ? `/records/${m.key}` : `/explore/${m.key}`
           return { key: m.key, to, icon: curated?.icon || meta.icon, label: curated?.label || meta.label }
         })
         .sort((a, b) => a.label.localeCompare(b.label))
@@ -57,6 +59,8 @@ export default function Sidebar() {
     // Fallback before discovery completes (or if it fails): curated core types.
     return ENTITY_LIST.map((e) => ({ key: e.key, to: `/records/${e.key}`, icon: e.icon, label: e.label }))
   }, [moduleList])
+
+  const visibleItems = navItems.filter((it) => !hidden.has(it.key))
 
   const Item = ({ to, end, icon, label }) => (
     <NavLink to={to} end={end} className={cls} title={collapsed ? label : undefined}>
@@ -86,13 +90,16 @@ export default function Sidebar() {
         <div className={`pb-1 pt-4 text-[10px] font-semibold uppercase tracking-wider text-slate-500 ${collapsed ? 'text-center' : 'px-3'}`}>
           {collapsed ? '•••' : t('nav.records')}
         </div>
-        {navItems.map((it) => (
+        {visibleItems.map((it) => (
           <Item key={it.key} to={it.to} icon={it.icon} label={it.label} />
         ))}
+        {hasStatements && !hidden.has('mico360statements') && (
+          <Item to="/statements" icon="📑" label="Client Statements" />
+        )}
       </nav>
 
       <div className="space-y-1 px-3 py-3">
-        <Item to="/modules" icon="🧩" label={t('nav.modules')} />
+        {!hidden.has('modules') && <Item to="/modules" icon="🧩" label={t('nav.modules')} />}
         <Item to="/profiles" icon="👤" label={t('nav.profiles')} />
         <Item to="/settings" icon="⚙️" label={t('nav.settings')} />
         {!narrow && (

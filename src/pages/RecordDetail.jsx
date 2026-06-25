@@ -14,6 +14,33 @@ import { humanizeKey, formatNumber, recordMoney, lineMoney, extraFields } from '
 const HTML_FIELDS = new Set(['note_public', 'note_private', 'note', 'description'])
 const isHtml = (v) => typeof v === 'string' && /<[a-z][\s\S]*>/i.test(v)
 
+// Map Dolibarr object types to our routes for linked-document navigation.
+const TYPE_ROUTE = {
+  facture: 'invoices', commande: 'orders', propal: 'proposals',
+  commande_fournisseur: 'supplierorders', facture_fournisseur: 'supplierinvoices',
+  societe: 'thirdparties', product: 'products',
+}
+
+// Extract related documents from a record's linkedObjects / linkedObjectsIds.
+function relatedDocs(record) {
+  const out = []
+  const push = (type, id, ref) => out.push({ type, route: TYPE_ROUTE[type], id, ref: ref || `#${id}`, label: humanizeKey(type) })
+  const lo = record.linkedObjects
+  if (lo && typeof lo === 'object' && !Array.isArray(lo)) {
+    for (const [type, items] of Object.entries(lo)) {
+      const arr = items && typeof items === 'object' ? Object.values(items) : []
+      for (const it of arr) if (it && typeof it === 'object') push(type, it.id ?? it.rowid, it.ref || it.label)
+    }
+  }
+  if (!out.length && record.linkedObjectsIds && typeof record.linkedObjectsIds === 'object') {
+    for (const [type, ids] of Object.entries(record.linkedObjectsIds)) {
+      const arr = Array.isArray(ids) ? ids : Object.values(ids || {})
+      for (const id of arr) push(type, id)
+    }
+  }
+  return out
+}
+
 // Internal / noisy keys we never surface in the "more fields" grid.
 const HIDDEN_FIELDS = new Set([
   'id', 'rowid', 'entity', 'import_key', 'array_options', 'array_languages',
@@ -234,6 +261,29 @@ export default function RecordDetail() {
                   </div>
                 ))}
               </dl>
+            </div>
+          )}
+
+          {/* Related / linked documents */}
+          {relatedDocs(record).length > 0 && (
+            <div className="card mb-5 p-6">
+              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Related documents</h2>
+              <div className="flex flex-wrap gap-2">
+                {relatedDocs(record).map((d, i) => (
+                  <button
+                    key={`${d.type}-${d.id}-${i}`}
+                    disabled={!d.route}
+                    onClick={() => d.route && navigate(`/records/${d.route}/${d.id}`)}
+                    className={`rounded-lg border px-3 py-1.5 text-sm ${
+                      d.route
+                        ? 'border-slate-200 bg-white text-slate-700 hover:border-brand-300 hover:text-brand-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200'
+                        : 'cursor-default border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-800 dark:bg-slate-800/50'
+                    }`}
+                  >
+                    <span className="text-slate-400">{d.label}:</span> {d.ref}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 

@@ -16,6 +16,7 @@ const DEFAULTS = {
     zoom: 100, // 100 | 125 | 150 | 175
     dashboardLayout: 'default',
     language: 'en', // UI language code
+    hiddenMenu: [], // main-menu items the user has hidden
   },
   updates: {
     autoUpdate: true,

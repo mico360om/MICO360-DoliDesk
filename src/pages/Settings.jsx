@@ -5,6 +5,8 @@ import { useProfiles } from '../context/ProfileContext.jsx'
 import { Toggle, Row, ConfirmDialog, Toast } from '../components/ui.jsx'
 import { BRAND } from '../lib/brand.js'
 import { LANGUAGES } from '../lib/i18n.js'
+import { ENTITY_LIST, getEntity } from '../lib/entities.js'
+import { getModuleMeta, NON_BROWSABLE } from '../lib/moduleMeta.js'
 import { AboutPage, PrivacyPage, TermsPage } from './legal.jsx'
 import {
   settings as settingsApi,
@@ -16,6 +18,7 @@ import {
 
 const NAV = [
   { key: 'display', label: 'Display', icon: '🎨' },
+  { key: 'menu', label: 'Main menu', icon: '🧭' },
   { key: 'updates', label: 'Updates', icon: '⬆️' },
   { key: 'data', label: 'Data & Cache', icon: '🗄️' },
   { key: 'security', label: 'Security', icon: '🔐' },
@@ -58,6 +61,7 @@ export default function Settings() {
       {/* Section content */}
       <div className="min-w-0 flex-1 overflow-y-auto p-6">
         {section === 'display' && <DisplaySection />}
+        {section === 'menu' && <MenuSection />}
         {section === 'updates' && <UpdatesSection notify={notify} />}
         {section === 'data' && <DataSection notify={notify} />}
         {section === 'security' && <SecuritySection notify={notify} />}
@@ -144,6 +148,47 @@ function DisplaySection() {
           options={[['default', 'Default'], ['compact', 'Compact']]}
         />
       </Row>
+    </Card>
+  )
+}
+
+// ---- Main menu (show/hide nav items) ---------------------------------------
+function MenuSection() {
+  const { settings, update } = useSettings()
+  const { moduleList, modules } = useProfiles()
+  const hidden = new Set(settings.display.hiddenMenu || [])
+
+  const items = []
+  if (moduleList && moduleList.length) {
+    for (const m of moduleList) {
+      if (!m.methods.includes('GET') || NON_BROWSABLE.has(m.key) || m.key.includes('statement')) continue
+      const curated = getEntity(m.key)
+      const meta = getModuleMeta(m.key)
+      items.push({ key: m.key, icon: curated?.icon || meta.icon, label: curated?.label || meta.label })
+    }
+    items.sort((a, b) => a.label.localeCompare(b.label))
+  } else {
+    for (const e of ENTITY_LIST) items.push({ key: e.key, icon: e.icon, label: e.label })
+  }
+  const hasStatements = !modules || [...modules].some((k) => k.includes('statement'))
+  if (hasStatements) items.push({ key: 'mico360statements', icon: '📑', label: 'Client Statements' })
+  items.push({ key: 'modules', icon: '🧩', label: 'Modules' })
+
+  const toggle = (key) => {
+    const next = hidden.has(key) ? [...hidden].filter((k) => k !== key) : [...hidden, key]
+    update('display', { hiddenMenu: next })
+  }
+
+  return (
+    <Card
+      title="Main menu"
+      desc="Show or hide items in the left navigation. Dashboard, Profiles and Settings always stay visible."
+    >
+      {items.map((it) => (
+        <Row key={it.key} title={<span><span className="mr-1.5">{it.icon}</span>{it.label}</span>}>
+          <Toggle checked={!hidden.has(it.key)} onChange={() => toggle(it.key)} />
+        </Row>
+      ))}
     </Card>
   )
 }
