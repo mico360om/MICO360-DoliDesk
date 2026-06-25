@@ -10,6 +10,8 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
+    // Don't reload the dev app when build artifacts change.
+    watch: { ignored: ['**/release/**', '**/dist/**'] },
   },
   build: {
     outDir: 'dist',

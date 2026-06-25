@@ -1,4 +1,4 @@
-import { formatMoney, formatDate, formatNumber } from './format.js'
+import { formatMoney, formatDate, formatNumber, toNumber, toDate } from './format.js'
 
 // Single source of truth for every supported Dolibarr record type. The
 // list page, detail page and dashboard are all generic and read from here,
@@ -67,6 +67,46 @@ function productStatus(r) {
     : { label: 'Not for sale', tone: 'slate' }
 }
 
+function isUnpaidInvoice(r) {
+  return invoiceStatus(r).label === 'Unpaid'
+}
+
+// Builds the summary metrics shown above a list — including a "Today" figure
+// (records dated today) plus running totals over the supplied rows.
+function moneySummary(rows, { dateField, ttc = 'total_ttc', ht = 'total_ht', unpaid } = {}) {
+  const start = new Date()
+  start.setHours(0, 0, 0, 0)
+  const isToday = (r) => {
+    const d = toDate(r[dateField])
+    return d && d.getTime() >= start.getTime()
+  }
+  const sum = (rs, f) => rs.reduce((s, r) => s + (toNumber(r[f]) || 0), 0)
+  const todays = dateField ? rows.filter(isToday) : []
+
+  const metrics = []
+  if (dateField) {
+    metrics.push({
+      label: 'Today',
+      value: formatMoney(sum(todays, ttc)),
+      sub: `${todays.length} record${todays.length === 1 ? '' : 's'}`,
+      accent: 'brand',
+    })
+  }
+  metrics.push({ label: 'Records', value: String(rows.length), accent: 'slate' })
+  metrics.push({ label: 'Total (excl. tax)', value: formatMoney(sum(rows, ht)), accent: 'slate' })
+  metrics.push({ label: 'Total (incl. tax)', value: formatMoney(sum(rows, ttc)), accent: 'emerald' })
+  if (unpaid) {
+    const out = rows.filter(unpaid)
+    metrics.push({
+      label: 'Outstanding',
+      value: formatMoney(sum(out, ttc)),
+      sub: `${out.length} unpaid`,
+      accent: 'amber',
+    })
+  }
+  return metrics
+}
+
 // ---- Entity registry -------------------------------------------------------
 
 export const ENTITIES = {
@@ -110,10 +150,14 @@ export const ENTITIES = {
     socField: 'socid', // links to a third party — resolved to a name in the UI
     hasLines: true,
     amountField: 'total_ttc',
+    dateField: 'date',
+    summary: (rows) => moneySummary(rows, { dateField: 'date', unpaid: isUnpaidInvoice }),
     columns: [
       { key: 'ref', label: 'Reference', grow: true, render: (r) => r.ref || '—' },
       { key: 'date', label: 'Date', render: (r) => formatDate(r.date) },
+      { key: 'date_lim_reglement', label: 'Due date', render: (r) => formatDate(r.date_lim_reglement) },
       { key: 'total_ht', label: 'Total (excl.)', align: 'right', render: (r) => formatMoney(r.total_ht, r.multicurrency_code) },
+      { key: 'total_tva', label: 'VAT', align: 'right', render: (r) => formatMoney(r.total_tva, r.multicurrency_code) },
       { key: 'total_ttc', label: 'Total (incl.)', align: 'right', render: (r) => formatMoney(r.total_ttc, r.multicurrency_code) },
     ],
     detailFields: ['ref', 'ref_client', 'date', 'date_lim_reglement', 'total_ht', 'total_tva', 'total_ttc', 'multicurrency_code'],
@@ -155,6 +199,8 @@ export const ENTITIES = {
     socField: 'socid',
     hasLines: true,
     amountField: 'total_ttc',
+    dateField: 'date_commande',
+    summary: (rows) => moneySummary(rows, { dateField: 'date_commande' }),
     columns: [
       { key: 'ref', label: 'Reference', grow: true, render: (r) => r.ref || '—' },
       { key: 'date', label: 'Date', render: (r) => formatDate(r.date_commande || r.date) },
@@ -178,6 +224,8 @@ export const ENTITIES = {
     socField: 'socid',
     hasLines: true,
     amountField: 'total_ttc',
+    dateField: 'date',
+    summary: (rows) => moneySummary(rows, { dateField: 'date' }),
     columns: [
       { key: 'ref', label: 'Reference', grow: true, render: (r) => r.ref || '—' },
       { key: 'date', label: 'Date', render: (r) => formatDate(r.date) },
