@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { api } from '../api/ipc.js'
+import { api, appInfo } from '../api/ipc.js'
 import { getEntity } from '../lib/entities.js'
 import { ErrorState, SafeHtml, Skeleton, Spinner, StatusBadge } from '../components/ui.jsx'
 import { useT } from '../lib/i18n.js'
 import { useToast } from '../context/ToastContext.jsx'
+import { useProfiles } from '../context/ProfileContext.jsx'
 import { getNeighbours } from '../lib/navCache.js'
+import { dolibarrWebUrl } from '../lib/dolibarrUrl.js'
 import { humanizeKey, formatNumber, recordMoney, lineMoney } from '../lib/format.js'
 
 // Content fields Dolibarr stores as HTML — rendered (sanitised) rather than escaped.
@@ -26,6 +28,7 @@ export default function RecordDetail() {
   const navigate = useNavigate()
   const t = useT()
   const { toast } = useToast()
+  const { activeProfile } = useProfiles()
   const [record, setRecord] = useState(null)
   const [customer, setCustomer] = useState(null) // { id, name }
   const [loading, setLoading] = useState(true)
@@ -157,6 +160,15 @@ export default function RecordDetail() {
                 {entity.hasLines && (
                   <button className="btn-outline" onClick={downloadPdf} disabled={pdfBusy} title="Download the generated PDF">
                     {pdfBusy ? <Spinner className="h-4 w-4" /> : '⬇'} {t('action.downloadPdf')}
+                  </button>
+                )}
+                {dolibarrWebUrl(activeProfile?.url, type, record.id ?? record.rowid ?? id) && (
+                  <button
+                    className="btn-ghost"
+                    onClick={() => appInfo.openExternal(dolibarrWebUrl(activeProfile?.url, type, record.id ?? record.rowid ?? id))}
+                    title="Open this record in Dolibarr"
+                  >
+                    🌐 Open in Dolibarr
                   </button>
                 )}
               </div>

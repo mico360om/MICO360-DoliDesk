@@ -71,6 +71,30 @@ function isUnpaidInvoice(r) {
   return invoiceStatus(r).label === 'Unpaid'
 }
 
+function supplierOrderStatus(r) {
+  const s = Number(r.status ?? r.statut)
+  const map = {
+    0: { label: 'Draft', tone: 'slate' },
+    1: { label: 'Validated', tone: 'blue' },
+    2: { label: 'Approved', tone: 'blue' },
+    3: { label: 'Ordered', tone: 'amber' },
+    4: { label: 'Partially received', tone: 'amber' },
+    5: { label: 'Received', tone: 'green' },
+    6: { label: 'Cancelled', tone: 'red' },
+    7: { label: 'Cancelled', tone: 'red' },
+    9: { label: 'Refused', tone: 'red' },
+  }
+  return map[s] || { label: 'Unknown', tone: 'slate' }
+}
+
+function supplierInvoiceStatus(r) {
+  const s = Number(r.status ?? r.statut)
+  if (s === 0) return { label: 'Draft', tone: 'slate' }
+  if (s === 2 || Number(r.paye) === 1) return { label: 'Paid', tone: 'green' }
+  if (s === 3) return { label: 'Abandoned', tone: 'red' }
+  return { label: 'Unpaid', tone: 'amber' }
+}
+
 // Builds the summary metrics shown above a list — including a "Today" figure
 // (records dated today) plus running totals over the supplied rows.
 function moneySummary(rows, { dateField, ttc = 'total_ttc', ht = 'total_ht', unpaid } = {}) {
@@ -264,9 +288,66 @@ export const ENTITIES = {
     ],
     detailFields: ['ref', 'ref_client', 'date', 'fin_validite', 'total_ht', 'total_tva', 'total_ttc', 'multicurrency_code'],
   },
+
+  // ---- Supplier / purchasing (shown when the modules are enabled) ----
+  supplierorders: {
+    key: 'supplierorders',
+    label: 'Supplier orders',
+    singular: 'Supplier order',
+    icon: '🚚',
+    sortfield: 't.rowid',
+    title: (r) => r.ref || `#${pickId(r)}`,
+    subtitle: (r) => [r.ref_supplier, formatDate(r.date_commande || r.date)].filter(Boolean).join(' · '),
+    status: supplierOrderStatus,
+    socField: 'socid',
+    hasLines: true,
+    dateField: 'date_commande',
+    searchFields: ['ref', 'ref_supplier', 'socid'],
+    sqlSearch: ['t.ref', 't.ref_supplier'],
+    summary: (rows) => moneySummary(rows, { dateField: 'date_commande' }),
+    columns: [
+      { key: 'ref', label: 'Reference', grow: true, render: (r) => r.ref || '—' },
+      { key: 'ref_supplier', label: 'Supplier ref', render: (r) => r.ref_supplier || '—' },
+      { key: 'date', label: 'Date', render: (r) => formatDate(r.date_commande || r.date) },
+      { key: 'total_ht', label: 'Total (excl.)', align: 'right', render: (r) => recordMoney(r, 'total_ht') },
+      { key: 'total_ttc', label: 'Total (incl.)', align: 'right', render: (r) => recordMoney(r, 'total_ttc') },
+    ],
+    detailFields: ['ref', 'ref_supplier', 'date_commande', 'total_ht', 'total_tva', 'total_ttc', 'multicurrency_code'],
+  },
+
+  supplierinvoices: {
+    key: 'supplierinvoices',
+    label: 'Supplier invoices',
+    singular: 'Supplier invoice',
+    icon: '🧾',
+    sortfield: 't.rowid',
+    title: (r) => r.ref || r.ref_supplier || `#${pickId(r)}`,
+    subtitle: (r) => [r.ref_supplier, formatDate(r.datef || r.date)].filter(Boolean).join(' · '),
+    status: supplierInvoiceStatus,
+    socField: 'socid',
+    hasLines: true,
+    dateField: 'datef',
+    searchFields: ['ref', 'ref_supplier', 'socid'],
+    sqlSearch: ['t.ref', 't.ref_supplier'],
+    summary: (rows) => moneySummary(rows, { dateField: 'datef', unpaid: (r) => supplierInvoiceStatus(r).label === 'Unpaid' }),
+    columns: [
+      { key: 'ref', label: 'Reference', grow: true, render: (r) => r.ref || '—' },
+      { key: 'ref_supplier', label: 'Supplier ref', render: (r) => r.ref_supplier || '—' },
+      { key: 'date', label: 'Date', render: (r) => formatDate(r.datef || r.date) },
+      { key: 'total_ht', label: 'Total (excl.)', align: 'right', render: (r) => recordMoney(r, 'total_ht') },
+      { key: 'total_ttc', label: 'Total (incl.)', align: 'right', render: (r) => recordMoney(r, 'total_ttc') },
+    ],
+    detailFields: ['ref', 'ref_supplier', 'datef', 'date_lim_reglement', 'total_ht', 'total_tva', 'total_ttc', 'multicurrency_code'],
+  },
 }
 
-export const ENTITY_LIST = Object.values(ENTITIES)
+// Core record types shown for every Dolibarr instance.
+const CORE_KEYS = ['thirdparties', 'invoices', 'products', 'orders', 'proposals']
+// Optional types shown only when their module is detected as enabled.
+export const OPTIONAL_ENTITY_KEYS = ['supplierorders', 'supplierinvoices']
+
+export const ENTITY_LIST = CORE_KEYS.map((k) => ENTITIES[k])
+export const OPTIONAL_ENTITIES = OPTIONAL_ENTITY_KEYS.map((k) => ENTITIES[k])
 
 export function getEntity(type) {
   return ENTITIES[type] || null

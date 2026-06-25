@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { ENTITY_LIST } from '../lib/entities.js'
+import { ENTITY_LIST, OPTIONAL_ENTITIES } from '../lib/entities.js'
 import { useT } from '../lib/i18n.js'
 import { useProfiles } from '../context/ProfileContext.jsx'
 import Logo from './Logo.jsx'
@@ -18,7 +18,10 @@ const NARROW = 1100 // px — auto-collapse below this width
 
 export default function Sidebar() {
   const t = useT()
-  const { companyLogo } = useProfiles()
+  const { companyLogo, modules } = useProfiles()
+  // Show optional entries only once their module is detected as enabled.
+  const optional = OPTIONAL_ENTITIES.filter((e) => modules && modules.has(e.key))
+  const hasStatements = modules && modules.has('mico360statements')
   const [userPref, setUserPref] = useState(() => localStorage.getItem(COLLAPSE_KEY) === '1')
   const [narrow, setNarrow] = useState(() => window.innerWidth < NARROW)
 
@@ -72,6 +75,10 @@ export default function Sidebar() {
         {ENTITY_LIST.map((e) => (
           <Item key={e.key} to={`/records/${e.key}`} icon={e.icon} label={e.label} />
         ))}
+        {optional.map((e) => (
+          <Item key={e.key} to={`/records/${e.key}`} icon={e.icon} label={e.label} />
+        ))}
+        {hasStatements && <Item to="/statements" icon="📑" label="Client Statements" />}
       </nav>
 
       <div className="space-y-1 px-3 py-3">

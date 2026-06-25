@@ -160,6 +160,9 @@ function registerIpc() {
   ipcMain.handle('api:modules', wrap(() => dolibarr.getModules(activeOrThrow())))
   ipcMain.handle('api:company', wrap(() => dolibarr.getCompany(activeOrThrow())))
   ipcMain.handle('api:companyLogo', wrap(() => dolibarr.getCompanyLogo(activeOrThrow())))
+  ipcMain.handle('api:statement', wrap((socid, params) => dolibarr.getStatement(activeOrThrow(), socid, params)))
+  ipcMain.handle('api:statementAgeing', wrap((socid, params) => dolibarr.getStatementAgeing(activeOrThrow(), socid, params)))
+  ipcMain.handle('api:statementEmailLog', wrap((params) => dolibarr.getStatementEmailLog(activeOrThrow(), params)))
 
   // Dynamically set the window/taskbar icon to the active company logo
   // (or back to the bundled icon when null).

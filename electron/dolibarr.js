@@ -86,6 +86,8 @@ const ENTITIES = {
   products: { endpoint: '/products', label: 'Products' },
   orders: { endpoint: '/orders', label: 'Orders' },
   proposals: { endpoint: '/proposals', label: 'Proposals' },
+  supplierorders: { endpoint: '/supplierorders', label: 'Supplier orders' },
+  supplierinvoices: { endpoint: '/supplierinvoices', label: 'Supplier invoices' },
 }
 
 function entityDef(type) {
@@ -230,6 +232,8 @@ const MODULE_PART = {
   proposals: 'propal',
   thirdparties: 'societe',
   products: 'product',
+  supplierorders: 'commande_fournisseur',
+  supplierinvoices: 'facture_fournisseur',
 }
 
 // List the files attached to a record (typically the generated PDF).
@@ -301,6 +305,19 @@ async function downloadRecordPdf(profile, type, id, ref) {
   throw new Error(
     `No downloadable PDF was found. The document may not be generated yet — open the record in Dolibarr once to generate its PDF, then retry.${detail}`
   )
+}
+
+// ---- MICO360 Client Statement module (/mico360statements) -----------------
+// socid 0 = consolidated (all customers).
+async function getStatement(profile, socid, params = {}) {
+  return request(profile, `/mico360statements/${encodeURIComponent(socid)}`, { params, timeout: 30000 })
+}
+async function getStatementAgeing(profile, socid, params = {}) {
+  return request(profile, `/mico360statements/ageing/${encodeURIComponent(socid)}`, { params, timeout: 20000 })
+}
+async function getStatementEmailLog(profile, params = {}) {
+  const data = await request(profile, '/mico360statements/emaillog', { params })
+  return Array.isArray(data) ? data : data?.rows || data?.lines || []
 }
 
 // Fetch the configured company ("mysoc") details for the active instance —
@@ -507,4 +524,5 @@ module.exports = {
   request, list, listAll, getOne, listRaw, getRaw, resolveThirdparties, clearCaches,
   login, getModules, getCompany, getCompanyLogo, testConnection, ENTITIES, apiBase,
   listDocuments, downloadDocument, downloadRecordPdf,
+  getStatement, getStatementAgeing, getStatementEmailLog,
 }

@@ -31,6 +31,9 @@ export const api = {
   modules: async () => unwrap(await bridge.api.modules()),
   company: async () => unwrap(await bridge.api.company()),
   companyLogo: async () => unwrap(await bridge.api.companyLogo()),
+  statement: async (socid, params) => unwrap(await bridge.api.statement(socid, params)),
+  statementAgeing: async (socid, params) => unwrap(await bridge.api.statementAgeing(socid, params)),
+  statementEmailLog: async (params) => unwrap(await bridge.api.statementEmailLog(params)),
   documents: async (type, id) => unwrap(await bridge.api.documents(type, id)),
   savePdf: async (payload) => unwrap(await bridge.api.savePdf(payload)),
 }

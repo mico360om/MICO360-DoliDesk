@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { api, exportFile } from '../api/ipc.js'
+import { api, exportFile, appInfo } from '../api/ipc.js'
 import { getEntity, recordId, buildSqlSearch } from '../lib/entities.js'
 import { useColumnConfig } from '../lib/useColumnConfig.js'
 import { toCSV } from '../lib/csv.js'
 import { dateInRange } from '../lib/format.js'
+import { dolibarrWebUrl } from '../lib/dolibarrUrl.js'
 import { setNavIds } from '../lib/navCache.js'
 import { useProfiles } from '../context/ProfileContext.jsx'
 import { useToast } from '../context/ToastContext.jsx'
@@ -33,7 +34,7 @@ export default function RecordList() {
   const { type } = useParams()
   const entity = getEntity(type)
   const navigate = useNavigate()
-  const { activeId, company } = useProfiles()
+  const { activeId, company, activeProfile } = useProfiles()
   const { toast } = useToast()
 
   const [rows, setRows] = useState([])
@@ -449,6 +450,9 @@ export default function RecordList() {
                               <IconBtn title="Download PDF" onClick={() => downloadPdf(r)} busy={pdfBusyId === id}>⬇</IconBtn>
                             )}
                             <IconBtn title="Copy reference" onClick={() => copyRef(r)}>⧉</IconBtn>
+                            {dolibarrWebUrl(activeProfile?.url, entity.key, id) && (
+                              <IconBtn title="Open in Dolibarr" onClick={() => appInfo.openExternal(dolibarrWebUrl(activeProfile?.url, entity.key, id))}>🌐</IconBtn>
+                            )}
                           </div>
                         </td>
                       </tr>

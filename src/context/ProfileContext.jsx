@@ -11,6 +11,7 @@ export function ProfileProvider({ children }) {
   const [error, setError] = useState(null)
   const [company, setCompany] = useState(null) // Dolibarr company branding
   const [companyLogo, setCompanyLogo] = useState(null) // data URL of the active company logo
+  const [modules, setModules] = useState(null) // Set of available API module keys
 
   const refresh = useCallback(async () => {
     try {
@@ -42,7 +43,13 @@ export function ProfileProvider({ children }) {
     }
     setCompany(null)
     setCompanyLogo(null)
+    setModules(null)
     setBaseCurrency(null)
+    // Detect which API modules are enabled (drives optional nav entries).
+    api
+      .modules()
+      .then((m) => !cancelled && setModules(new Set((m.modules || []).map((x) => x.key))))
+      .catch(() => !cancelled && setModules(new Set()))
     api
       .company()
       .then((c) => {
@@ -100,6 +107,8 @@ export function ProfileProvider({ children }) {
       activeProfile,
       company,
       companyLogo,
+      modules,
+      hasModule: (key) => !modules || modules.has(key), // optimistic until loaded
       loading,
       error,
       refresh,
@@ -108,7 +117,7 @@ export function ProfileProvider({ children }) {
       switchProfile,
       hasProfiles: profiles.length > 0,
     }),
-    [profiles, activeId, activeProfile, company, companyLogo, loading, error, refresh, saveProfile, removeProfile, switchProfile]
+    [profiles, activeId, activeProfile, company, companyLogo, modules, loading, error, refresh, saveProfile, removeProfile, switchProfile]
   )
 
   return <ProfileContext.Provider value={value}>{children}</ProfileContext.Provider>

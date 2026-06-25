@@ -12,6 +12,7 @@ import RecordList from './pages/RecordList.jsx'
 import RecordDetail from './pages/RecordDetail.jsx'
 import Modules from './pages/Modules.jsx'
 import { ExploreList, ExploreDetail } from './pages/Explore.jsx'
+import Statements from './pages/Statements.jsx'
 import Profiles from './pages/Profiles.jsx'
 import Settings from './pages/Settings.jsx'
 import Welcome from './pages/Welcome.jsx'
@@ -59,6 +60,7 @@ export default function App() {
             <Route path="/modules" element={<Modules />} />
             <Route path="/explore/:module" element={<ExploreList />} />
             <Route path="/explore/:module/:id" element={<ExploreDetail />} />
+            <Route path="/statements" element={<Statements />} />
             <Route path="/profiles" element={<Profiles />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="*" element={<Navigate to="/" replace />} />
