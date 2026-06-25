@@ -107,6 +107,16 @@ export function dateInRange(v, range) {
   return d.getTime() >= start.getTime()
 }
 
+// Dolibarr custom fields (extrafields) live in `array_options` with keys like
+// "options_mycode". Returns [{ key, label, value }] of the non-empty ones.
+export function extraFields(record) {
+  const ao = record && record.array_options
+  if (!ao || typeof ao !== 'object' || Array.isArray(ao)) return []
+  return Object.entries(ao)
+    .filter(([, v]) => v !== null && v !== undefined && v !== '' && typeof v !== 'object')
+    .map(([k, v]) => ({ key: k, label: humanizeKey(k.replace(/^options_/, '')), value: v }))
+}
+
 // Title-cases a snake_case / camelCase field key for the detail view.
 export function humanizeKey(key) {
   return String(key)

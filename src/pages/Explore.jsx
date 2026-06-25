@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api } from '../api/ipc.js'
 import { EmptyState, ErrorState, Loading, SafeHtml } from '../components/ui.jsx'
-import { formatDate, formatMoney, humanizeKey } from '../lib/format.js'
+import { formatDate, formatMoney, humanizeKey, extraFields } from '../lib/format.js'
 
 // Generic browser for any Dolibarr module endpoint (used for custom modules
 // that aren't in the curated entity registry). Columns and fields are
@@ -182,6 +182,48 @@ export function ExploreDetail() {
               ))}
             </dl>
           </div>
+
+          {/* Custom fields (extrafields) */}
+          {extraFields(record).length > 0 && (
+            <div className="card mb-5 p-6">
+              <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500">Custom fields</h2>
+              <dl className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
+                {extraFields(record).map((f) => (
+                  <div key={f.key} className="min-w-0">
+                    <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">{f.label}</dt>
+                    <dd className="mt-0.5 break-words text-sm text-slate-800 dark:text-slate-200">{String(f.value)}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          )}
+
+          {/* Line items, if the record has them */}
+          {Array.isArray(record.lines) && record.lines.length > 0 && (
+            <div className="card mb-5 overflow-hidden">
+              <div className="border-b border-slate-100 px-6 py-4 text-sm font-semibold text-slate-700 dark:border-slate-800 dark:text-slate-200">
+                Line items <span className="text-slate-400">({record.lines.length})</span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse text-sm">
+                  <thead>
+                    <tr className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
+                      {inferColumns(record.lines).map((c) => <th key={c} className="px-4 py-2.5 font-semibold">{humanizeKey(c)}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {record.lines.map((l, i) => (
+                      <tr key={l.id ?? l.rowid ?? i} className="border-b border-slate-100 last:border-0 dark:border-slate-800">
+                        {inferColumns(record.lines).map((c) => (
+                          <td key={c} className="px-4 py-2.5 text-slate-700 dark:text-slate-300">{fmt(c, l[c])}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>

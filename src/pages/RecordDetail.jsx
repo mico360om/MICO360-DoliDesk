@@ -8,7 +8,7 @@ import { useToast } from '../context/ToastContext.jsx'
 import { useProfiles } from '../context/ProfileContext.jsx'
 import { getNeighbours } from '../lib/navCache.js'
 import { dolibarrWebUrl } from '../lib/dolibarrUrl.js'
-import { humanizeKey, formatNumber, recordMoney, lineMoney } from '../lib/format.js'
+import { humanizeKey, formatNumber, recordMoney, lineMoney, extraFields } from '../lib/format.js'
 
 // Content fields Dolibarr stores as HTML — rendered (sanitised) rather than escaped.
 const HTML_FIELDS = new Set(['note_public', 'note_private', 'note', 'description'])
@@ -219,6 +219,21 @@ export default function RecordDetail() {
                     </div>
                   ))}
               </div>
+            </div>
+          )}
+
+          {/* Custom fields (Dolibarr extrafields) */}
+          {extraFields(record).length > 0 && (
+            <div className="card mb-5 p-6">
+              <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500">Custom fields</h2>
+              <dl className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
+                {extraFields(record).map((f) => (
+                  <div key={f.key} className="min-w-0">
+                    <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">{f.label}</dt>
+                    <dd className="mt-0.5 break-words text-sm text-slate-800 dark:text-slate-200">{String(f.value)}</dd>
+                  </div>
+                ))}
+              </dl>
             </div>
           )}
 
