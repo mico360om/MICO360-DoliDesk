@@ -1,0 +1,211 @@
+import { formatMoney, formatDate, formatNumber } from './format.js'
+
+// Single source of truth for every supported Dolibarr record type. The
+// list page, detail page and dashboard are all generic and read from here,
+// so adding a new entity is a matter of adding one config object.
+
+const statusTone = (tone) => tone // 'green' | 'amber' | 'red' | 'slate' | 'blue'
+
+function pickId(r) {
+  return r.id ?? r.rowid ?? r.ref ?? null
+}
+
+// ---- Status decoders (Dolibarr stores numeric codes) ----------------------
+
+function thirdpartyStatus(r) {
+  return Number(r.status) === 1
+    ? { label: 'Active', tone: 'green' }
+    : { label: 'Inactive', tone: 'slate' }
+}
+
+function thirdpartyRole(r) {
+  const client = Number(r.client)
+  const supplier = Number(r.fournisseur)
+  const roles = []
+  if (client === 1 || client === 3) roles.push('Customer')
+  if (client === 2 || client === 3) roles.push('Prospect')
+  if (supplier === 1) roles.push('Supplier')
+  return roles.join(' · ') || '—'
+}
+
+function invoiceStatus(r) {
+  const s = Number(r.status ?? r.statut)
+  const paid = Number(r.paye) === 1
+  if (s === 0) return { label: 'Draft', tone: 'slate' }
+  if (s === 2 || paid) return { label: 'Paid', tone: 'green' }
+  if (s === 3) return { label: 'Abandoned', tone: 'red' }
+  return { label: 'Unpaid', tone: 'amber' }
+}
+
+function orderStatus(r) {
+  const s = Number(r.status ?? r.statut)
+  const map = {
+    0: { label: 'Draft', tone: 'slate' },
+    1: { label: 'Validated', tone: 'blue' },
+    2: { label: 'In process', tone: 'amber' },
+    3: { label: 'Delivered', tone: 'green' },
+    '-1': { label: 'Cancelled', tone: 'red' },
+  }
+  return map[s] || { label: 'Unknown', tone: 'slate' }
+}
+
+function proposalStatus(r) {
+  const s = Number(r.status ?? r.statut)
+  const map = {
+    0: { label: 'Draft', tone: 'slate' },
+    1: { label: 'Open', tone: 'blue' },
+    2: { label: 'Signed', tone: 'green' },
+    3: { label: 'Not signed', tone: 'red' },
+    4: { label: 'Billed', tone: 'green' },
+  }
+  return map[s] || { label: 'Unknown', tone: 'slate' }
+}
+
+function productStatus(r) {
+  return Number(r.status) === 1
+    ? { label: 'On sale', tone: 'green' }
+    : { label: 'Not for sale', tone: 'slate' }
+}
+
+// ---- Entity registry -------------------------------------------------------
+
+export const ENTITIES = {
+  thirdparties: {
+    key: 'thirdparties',
+    label: 'Third parties',
+    singular: 'Third party',
+    icon: '🏢',
+    sortfield: 't.rowid',
+    title: (r) => r.name || r.name_alias || `#${pickId(r)}`,
+    subtitle: (r) => [r.town, r.country_code].filter(Boolean).join(', '),
+    status: thirdpartyStatus,
+    // Fields scanned by the in-app (client-side) search box.
+    searchFields: ['name', 'name_alias', 'email', 'town', 'code_client', 'phone'],
+    // DB columns used for server-side sqlfilters search (whole dataset).
+    sqlSearch: ['t.nom', 't.name_alias', 't.email', 't.town', 't.code_client'],
+    columns: [
+      { key: 'name', label: 'Name', grow: true, render: (r) => r.name || r.name_alias || '—' },
+      { key: 'role', label: 'Role', render: (r) => thirdpartyRole(r) },
+      { key: 'town', label: 'Town', render: (r) => r.town || '—' },
+      { key: 'email', label: 'Email', render: (r) => r.email || '—' },
+      { key: 'phone', label: 'Phone', render: (r) => r.phone || '—' },
+    ],
+    detailFields: [
+      'name', 'name_alias', 'code_client', 'code_fournisseur', 'email', 'phone',
+      'address', 'zip', 'town', 'country_code', 'url', 'tva_intra',
+    ],
+  },
+
+  invoices: {
+    key: 'invoices',
+    label: 'Invoices',
+    singular: 'Invoice',
+    icon: '🧾',
+    sortfield: 't.rowid',
+    title: (r) => r.ref || `#${pickId(r)}`,
+    subtitle: (r) => formatDate(r.date),
+    status: invoiceStatus,
+    searchFields: ['ref', 'ref_client', 'socid'],
+    sqlSearch: ['t.ref', 't.ref_client'],
+    socField: 'socid', // links to a third party — resolved to a name in the UI
+    hasLines: true,
+    amountField: 'total_ttc',
+    columns: [
+      { key: 'ref', label: 'Reference', grow: true, render: (r) => r.ref || '—' },
+      { key: 'date', label: 'Date', render: (r) => formatDate(r.date) },
+      { key: 'total_ht', label: 'Total (excl.)', align: 'right', render: (r) => formatMoney(r.total_ht, r.multicurrency_code) },
+      { key: 'total_ttc', label: 'Total (incl.)', align: 'right', render: (r) => formatMoney(r.total_ttc, r.multicurrency_code) },
+    ],
+    detailFields: ['ref', 'ref_client', 'date', 'date_lim_reglement', 'total_ht', 'total_tva', 'total_ttc', 'multicurrency_code'],
+  },
+
+  products: {
+    key: 'products',
+    label: 'Products',
+    singular: 'Product',
+    icon: '📦',
+    sortfield: 't.rowid',
+    title: (r) => r.label || r.ref || `#${pickId(r)}`,
+    subtitle: (r) => r.ref || '',
+    status: productStatus,
+    searchFields: ['ref', 'label', 'barcode'],
+    sqlSearch: ['t.ref', 't.label', 't.barcode'],
+    amountField: 'price_ttc',
+    columns: [
+      { key: 'ref', label: 'Ref', render: (r) => r.ref || '—' },
+      { key: 'label', label: 'Label', grow: true, render: (r) => r.label || '—' },
+      { key: 'type', label: 'Type', render: (r) => (Number(r.type) === 1 ? 'Service' : 'Product') },
+      { key: 'price', label: 'Price (excl.)', align: 'right', render: (r) => formatMoney(r.price) },
+      { key: 'stock', label: 'Stock', align: 'right', render: (r) => (r.stock_reel != null ? formatNumber(r.stock_reel) : '—') },
+    ],
+    detailFields: ['ref', 'label', 'description', 'type', 'price', 'price_ttc', 'tva_tx', 'stock_reel', 'barcode', 'weight'],
+  },
+
+  orders: {
+    key: 'orders',
+    label: 'Orders',
+    singular: 'Order',
+    icon: '📑',
+    sortfield: 't.rowid',
+    title: (r) => r.ref || `#${pickId(r)}`,
+    subtitle: (r) => formatDate(r.date_commande || r.date),
+    status: orderStatus,
+    searchFields: ['ref', 'ref_client', 'socid'],
+    sqlSearch: ['t.ref', 't.ref_client'],
+    socField: 'socid',
+    hasLines: true,
+    amountField: 'total_ttc',
+    columns: [
+      { key: 'ref', label: 'Reference', grow: true, render: (r) => r.ref || '—' },
+      { key: 'date', label: 'Date', render: (r) => formatDate(r.date_commande || r.date) },
+      { key: 'total_ht', label: 'Total (excl.)', align: 'right', render: (r) => formatMoney(r.total_ht, r.multicurrency_code) },
+      { key: 'total_ttc', label: 'Total (incl.)', align: 'right', render: (r) => formatMoney(r.total_ttc, r.multicurrency_code) },
+    ],
+    detailFields: ['ref', 'ref_client', 'date_commande', 'total_ht', 'total_tva', 'total_ttc', 'multicurrency_code'],
+  },
+
+  proposals: {
+    key: 'proposals',
+    label: 'Proposals',
+    singular: 'Proposal',
+    icon: '📝',
+    sortfield: 't.rowid',
+    title: (r) => r.ref || `#${pickId(r)}`,
+    subtitle: (r) => formatDate(r.date),
+    status: proposalStatus,
+    searchFields: ['ref', 'ref_client', 'socid'],
+    sqlSearch: ['t.ref', 't.ref_client'],
+    socField: 'socid',
+    hasLines: true,
+    amountField: 'total_ttc',
+    columns: [
+      { key: 'ref', label: 'Reference', grow: true, render: (r) => r.ref || '—' },
+      { key: 'date', label: 'Date', render: (r) => formatDate(r.date) },
+      { key: 'total_ht', label: 'Total (excl.)', align: 'right', render: (r) => formatMoney(r.total_ht, r.multicurrency_code) },
+      { key: 'total_ttc', label: 'Total (incl.)', align: 'right', render: (r) => formatMoney(r.total_ttc, r.multicurrency_code) },
+    ],
+    detailFields: ['ref', 'ref_client', 'date', 'fin_validite', 'total_ht', 'total_tva', 'total_ttc', 'multicurrency_code'],
+  },
+}
+
+export const ENTITY_LIST = Object.values(ENTITIES)
+
+export function getEntity(type) {
+  return ENTITIES[type] || null
+}
+
+export function recordId(r) {
+  return pickId(r)
+}
+
+// Build a Dolibarr `sqlfilters` expression that searches `term` across the
+// entity's configured DB columns, e.g. (t.ref:like:'%abc%') or (t.label:like:'%abc%').
+export function buildSqlSearch(entity, term) {
+  const t = (term || '').trim()
+  if (!t || !entity.sqlSearch?.length) return undefined
+  const safe = t.replace(/['\\%]/g, '') // strip chars that could break the filter
+  if (!safe) return undefined
+  return entity.sqlSearch.map((col) => `(${col}:like:'%${safe}%')`).join(' or ')
+}
+
+export { thirdpartyRole }
