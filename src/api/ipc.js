@@ -30,6 +30,7 @@ export const api = {
   resolveThirdparties: async (ids) => unwrap(await bridge.api.resolveThirdparties(ids)),
   modules: async () => unwrap(await bridge.api.modules()),
   company: async () => unwrap(await bridge.api.company()),
+  companyLogo: async () => unwrap(await bridge.api.companyLogo()),
   documents: async (type, id) => unwrap(await bridge.api.documents(type, id)),
   savePdf: async (payload) => unwrap(await bridge.api.savePdf(payload)),
 }
@@ -65,6 +66,7 @@ export const appInfo = {
   version: async () => unwrap(await bridge.app.version()),
   openExternal: (url) => bridge.app.openExternal(url),
   notify: (payload) => bridge.app.notify(payload),
+  setIcon: (dataUrl) => bridge.app.setIcon(dataUrl),
 }
 
 export async function exportFile(payload) {

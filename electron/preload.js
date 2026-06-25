@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld('dolidesk', {
     resolveThirdparties: (ids) => ipcRenderer.invoke('api:resolveThirdparties', ids),
     modules: () => ipcRenderer.invoke('api:modules'),
     company: () => ipcRenderer.invoke('api:company'),
+    companyLogo: () => ipcRenderer.invoke('api:companyLogo'),
     documents: (type, id) => ipcRenderer.invoke('api:documents', type, id),
     savePdf: (payload) => ipcRenderer.invoke('documents:savePdf', payload),
   },
@@ -57,6 +58,7 @@ contextBridge.exposeInMainWorld('dolidesk', {
     version: () => ipcRenderer.invoke('app:version'),
     openExternal: (url) => ipcRenderer.invoke('app:openExternal', url),
     notify: (payload) => ipcRenderer.invoke('app:notify', payload),
+    setIcon: (dataUrl) => ipcRenderer.invoke('app:setIcon', dataUrl),
   },
   exportFile: (payload) => ipcRenderer.invoke('export:save', payload),
 })

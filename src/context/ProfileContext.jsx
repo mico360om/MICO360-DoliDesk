@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
-import { profiles as profilesApi, api } from '../api/ipc.js'
+import { profiles as profilesApi, api, appInfo } from '../api/ipc.js'
 import { setBaseCurrency } from '../lib/format.js'
 
 const ProfileContext = createContext(null)
@@ -10,6 +10,7 @@ export function ProfileProvider({ children }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [company, setCompany] = useState(null) // Dolibarr company branding
+  const [companyLogo, setCompanyLogo] = useState(null) // data URL of the active company logo
 
   const refresh = useCallback(async () => {
     try {
@@ -34,9 +35,13 @@ export function ProfileProvider({ children }) {
     let cancelled = false
     if (!activeId) {
       setCompany(null)
+      setCompanyLogo(null)
+      setBaseCurrency(null)
+      appInfo.setIcon(null) // back to bundled icon
       return
     }
     setCompany(null)
+    setCompanyLogo(null)
     setBaseCurrency(null)
     api
       .company()
@@ -46,6 +51,17 @@ export function ProfileProvider({ children }) {
         setBaseCurrency(c && (c.currency_code || c.currency))
       })
       .catch(() => !cancelled && setCompany(null))
+    // Fetch the company logo for branding + window icon (best-effort).
+    api
+      .companyLogo()
+      .then((logo) => {
+        if (cancelled) return
+        setCompanyLogo(logo?.dataUrl || null)
+        appInfo.setIcon(logo?.dataUrl || null)
+      })
+      .catch(() => {
+        if (!cancelled) appInfo.setIcon(null)
+      })
     return () => {
       cancelled = true
     }
@@ -83,6 +99,7 @@ export function ProfileProvider({ children }) {
       activeId,
       activeProfile,
       company,
+      companyLogo,
       loading,
       error,
       refresh,
@@ -91,7 +108,7 @@ export function ProfileProvider({ children }) {
       switchProfile,
       hasProfiles: profiles.length > 0,
     }),
-    [profiles, activeId, activeProfile, company, loading, error, refresh, saveProfile, removeProfile, switchProfile]
+    [profiles, activeId, activeProfile, company, companyLogo, loading, error, refresh, saveProfile, removeProfile, switchProfile]
   )
 
   return <ProfileContext.Provider value={value}>{children}</ProfileContext.Provider>

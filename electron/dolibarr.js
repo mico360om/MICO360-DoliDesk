@@ -311,6 +311,34 @@ async function getCompany(profile) {
   return data && typeof data === 'object' ? data : null
 }
 
+// Fetch the active company's logo image as a data URL (for in-app branding /
+// window icon). Prefers the square logo. Returns null if none / unavailable.
+async function getCompanyLogo(profile, companyMaybe) {
+  let company = companyMaybe
+  if (!company) {
+    try {
+      company = await getCompany(profile)
+    } catch {
+      return null
+    }
+  }
+  const logo = company && (company.logo_squarred || company.logo || company.logo_small)
+  if (!logo) return null
+  try {
+    const data = await request(profile, '/documents/download', {
+      params: { modulepart: 'mycompany', original_file: 'logos/' + logo },
+      timeout: 15000,
+    })
+    if (data && data.content) {
+      const mime = data['content-type'] || 'image/png'
+      return { dataUrl: `data:${mime};base64,${data.content}`, filename: logo }
+    }
+  } catch {
+    /* logo not accessible — fall back to bundled branding */
+  }
+  return null
+}
+
 // Discover enabled modules by reading the API's swagger spec. Each path is
 // grouped by its tag (falling back to the first URL segment); the resulting
 // groups map 1:1 to the modules that expose a REST API.
@@ -477,6 +505,6 @@ async function testConnection(profile) {
 
 module.exports = {
   request, list, listAll, getOne, listRaw, getRaw, resolveThirdparties, clearCaches,
-  login, getModules, getCompany, testConnection, ENTITIES, apiBase,
+  login, getModules, getCompany, getCompanyLogo, testConnection, ENTITIES, apiBase,
   listDocuments, downloadDocument, downloadRecordPdf,
 }

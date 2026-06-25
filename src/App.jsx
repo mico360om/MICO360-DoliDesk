@@ -72,15 +72,21 @@ export default function App() {
 // Header brand area — shows the connected Dolibarr company when available,
 // falling back to the active profile name.
 function Brand() {
-  const { activeProfile, company } = useProfiles()
+  const { activeProfile, company, companyLogo } = useProfiles()
   const companyName = company && (company.name || company.nom)
   return (
     <div className="flex items-center gap-2.5 text-sm">
       {companyName ? (
         <>
-          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-brand-600 text-xs font-bold text-white">
-            {companyName.slice(0, 2).toUpperCase()}
-          </span>
+          {companyLogo ? (
+            <span className="flex h-7 items-center justify-center overflow-hidden rounded-md bg-white px-1 ring-1 ring-slate-200 dark:ring-slate-700">
+              <img src={companyLogo} alt={companyName} className="h-5 w-auto object-contain" />
+            </span>
+          ) : (
+            <span className="flex h-7 w-7 items-center justify-center rounded-md bg-brand-600 text-xs font-bold text-white">
+              {companyName.slice(0, 2).toUpperCase()}
+            </span>
+          )}
           <span className="text-slate-500 dark:text-slate-400">
             <span className="font-semibold text-slate-700 dark:text-slate-200">{companyName}</span>
             {company.town && <span className="ml-1 text-slate-400">· {company.town}</span>}

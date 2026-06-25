@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { ENTITY_LIST } from '../lib/entities.js'
 import { useT } from '../lib/i18n.js'
+import { useProfiles } from '../context/ProfileContext.jsx'
 import Logo from './Logo.jsx'
 
 const COLLAPSE_KEY = 'dolidesk:sidebar-collapsed'
@@ -17,6 +18,7 @@ const NARROW = 1100 // px — auto-collapse below this width
 
 export default function Sidebar() {
   const t = useT()
+  const { companyLogo } = useProfiles()
   const [userPref, setUserPref] = useState(() => localStorage.getItem(COLLAPSE_KEY) === '1')
   const [narrow, setNarrow] = useState(() => window.innerWidth < NARROW)
 
@@ -52,10 +54,10 @@ export default function Sidebar() {
     >
       <div className={`flex items-center py-5 ${collapsed ? 'justify-center px-2' : 'px-4'}`}>
         {collapsed ? (
-          <Logo panel className="h-7 w-7 object-contain" alt="MICO360" />
+          <Logo src={companyLogo} panel className="h-7 w-7" alt="Company" />
         ) : (
           <div>
-            <Logo panel className="h-9" />
+            <Logo src={companyLogo} panel className="h-9" />
             <div className="mt-2 px-1 text-xs font-medium text-slate-400">DoliDesk</div>
           </div>
         )}

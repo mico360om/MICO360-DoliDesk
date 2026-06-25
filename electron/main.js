@@ -1,6 +1,6 @@
 'use strict'
 
-const { app, BrowserWindow, ipcMain, session, shell, dialog, Notification } = require('electron')
+const { app, BrowserWindow, ipcMain, session, shell, dialog, Notification, nativeImage } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const store = require('./store')
@@ -159,6 +159,24 @@ function registerIpc() {
   ipcMain.handle('api:resolveThirdparties', wrap((ids) => dolibarr.resolveThirdparties(activeOrThrow(), ids)))
   ipcMain.handle('api:modules', wrap(() => dolibarr.getModules(activeOrThrow())))
   ipcMain.handle('api:company', wrap(() => dolibarr.getCompany(activeOrThrow())))
+  ipcMain.handle('api:companyLogo', wrap(() => dolibarr.getCompanyLogo(activeOrThrow())))
+
+  // Dynamically set the window/taskbar icon to the active company logo
+  // (or back to the bundled icon when null).
+  ipcMain.handle('app:setIcon', wrap((dataUrl) => {
+    if (!mainWindow || mainWindow.isDestroyed()) return { ok: false }
+    try {
+      if (dataUrl) {
+        const img = nativeImage.createFromDataURL(dataUrl)
+        if (!img.isEmpty()) mainWindow.setIcon(img)
+      } else {
+        mainWindow.setIcon(path.join(__dirname, '..', 'build', 'icon.ico'))
+      }
+    } catch {
+      /* ignore icon failures */
+    }
+    return { ok: true }
+  }))
   ipcMain.handle('api:documents', wrap((type, id) => dolibarr.listDocuments(activeOrThrow(), type, id)))
 
   // Download a record's PDF and save it via the native dialog.
