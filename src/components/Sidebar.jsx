@@ -1,11 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { ENTITY_LIST, OPTIONAL_ENTITIES } from '../lib/entities.js'
+import { ENTITY_LIST, getEntity } from '../lib/entities.js'
+import { getModuleMeta, NON_BROWSABLE } from '../lib/moduleMeta.js'
 import { useT } from '../lib/i18n.js'
 import { useProfiles } from '../context/ProfileContext.jsx'
 import Logo from './Logo.jsx'
 
 const COLLAPSE_KEY = 'dolidesk:sidebar-collapsed'
+const NARROW = 1100
 
 function linkClass(collapsed) {
   return ({ isActive }) =>
@@ -14,18 +16,12 @@ function linkClass(collapsed) {
     } ${isActive ? 'bg-brand-600 text-white shadow-sm' : 'text-slate-300 hover:bg-slate-700/60 hover:text-white'}`
 }
 
-const NARROW = 1100 // px — auto-collapse below this width
-
 export default function Sidebar() {
   const t = useT()
-  const { companyLogo, modules } = useProfiles()
-  // Show optional entries only once their module is detected as enabled.
-  const optional = OPTIONAL_ENTITIES.filter((e) => modules && modules.has(e.key))
-  const hasStatements = modules && modules.has('mico360statements')
+  const { companyLogo, moduleList } = useProfiles()
   const [userPref, setUserPref] = useState(() => localStorage.getItem(COLLAPSE_KEY) === '1')
   const [narrow, setNarrow] = useState(() => window.innerWidth < NARROW)
 
-  // Auto-collapse on small windows; keep the user's choice when there's room.
   useEffect(() => {
     const onResize = () => setNarrow(window.innerWidth < NARROW)
     window.addEventListener('resize', onResize)
@@ -38,10 +34,30 @@ export default function Sidebar() {
     setUserPref(next)
     localStorage.setItem(COLLAPSE_KEY, next ? '1' : '0')
   }
-
   const cls = linkClass(collapsed)
 
-  // A nav item; hides its label (and shows a tooltip) when collapsed.
+  // Build the record navigation from the instance's enabled API modules. Each
+  // module routes to its curated view when we have one, the Client Statements
+  // page for the statement module, or the generic read-only viewer otherwise.
+  const navItems = useMemo(() => {
+    if (moduleList && moduleList.length) {
+      return moduleList
+        .filter((m) => m.methods.includes('GET') && !NON_BROWSABLE.has(m.key))
+        .map((m) => {
+          const curated = getEntity(m.key)
+          const meta = getModuleMeta(m.key)
+          let to
+          if (m.key === 'mico360statements') to = '/statements'
+          else if (curated) to = `/records/${m.key}`
+          else to = `/explore/${m.key}`
+          return { key: m.key, to, icon: curated?.icon || meta.icon, label: curated?.label || meta.label }
+        })
+        .sort((a, b) => a.label.localeCompare(b.label))
+    }
+    // Fallback before discovery completes (or if it fails): curated core types.
+    return ENTITY_LIST.map((e) => ({ key: e.key, to: `/records/${e.key}`, icon: e.icon, label: e.label }))
+  }, [moduleList])
+
   const Item = ({ to, end, icon, label }) => (
     <NavLink to={to} end={end} className={cls} title={collapsed ? label : undefined}>
       <span className="text-base">{icon}</span>
@@ -51,9 +67,7 @@ export default function Sidebar() {
 
   return (
     <aside
-      className={`flex flex-col bg-slate-900 text-slate-100 transition-[width] duration-200 ${
-        collapsed ? 'w-16' : 'w-60'
-      }`}
+      className={`flex flex-col bg-slate-900 text-slate-100 transition-[width] duration-200 ${collapsed ? 'w-16' : 'w-60'}`}
     >
       <div className={`flex items-center py-5 ${collapsed ? 'justify-center px-2' : 'px-4'}`}>
         {collapsed ? (
@@ -72,20 +86,15 @@ export default function Sidebar() {
         <div className={`pb-1 pt-4 text-[10px] font-semibold uppercase tracking-wider text-slate-500 ${collapsed ? 'text-center' : 'px-3'}`}>
           {collapsed ? '•••' : t('nav.records')}
         </div>
-        {ENTITY_LIST.map((e) => (
-          <Item key={e.key} to={`/records/${e.key}`} icon={e.icon} label={e.label} />
+        {navItems.map((it) => (
+          <Item key={it.key} to={it.to} icon={it.icon} label={it.label} />
         ))}
-        {optional.map((e) => (
-          <Item key={e.key} to={`/records/${e.key}`} icon={e.icon} label={e.label} />
-        ))}
-        {hasStatements && <Item to="/statements" icon="📑" label="Client Statements" />}
       </nav>
 
       <div className="space-y-1 px-3 py-3">
         <Item to="/modules" icon="🧩" label={t('nav.modules')} />
         <Item to="/profiles" icon="👤" label={t('nav.profiles')} />
         <Item to="/settings" icon="⚙️" label={t('nav.settings')} />
-        {/* Manual collapse toggle — hidden when the window forces narrow mode. */}
         {!narrow && (
           <button
             onClick={() => setCollapsed((c) => !c)}
