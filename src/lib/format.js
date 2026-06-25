@@ -54,6 +54,24 @@ export function relativeDate(v) {
   return abs
 }
 
+// Whether a Dolibarr date value falls within a named range (for list filters).
+export function dateInRange(v, range) {
+  if (!range || range === 'all') return true
+  const d = toDate(v)
+  if (!d) return false
+  const now = new Date()
+  const start = new Date(now)
+  if (range === 'today') start.setHours(0, 0, 0, 0)
+  else if (range === 'week') {
+    start.setDate(now.getDate() - now.getDay())
+    start.setHours(0, 0, 0, 0)
+  } else if (range === 'month') {
+    start.setDate(1)
+    start.setHours(0, 0, 0, 0)
+  } else return true
+  return d.getTime() >= start.getTime()
+}
+
 // Title-cases a snake_case / camelCase field key for the detail view.
 export function humanizeKey(key) {
   return String(key)

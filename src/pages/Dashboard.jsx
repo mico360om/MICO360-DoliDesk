@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { api } from '../api/ipc.js'
 import { ENTITIES, recordId } from '../lib/entities.js'
 import { useProfiles } from '../context/ProfileContext.jsx'
-import { ErrorState, Loading, StatusBadge } from '../components/ui.jsx'
+import { CardsSkeleton, ErrorState, Skeleton, StatusBadge } from '../components/ui.jsx'
 import { formatMoney, toNumber, toDate } from '../lib/format.js'
 import { Donut, BarChart, HBars, Legend } from '../components/charts.jsx'
 
@@ -132,7 +132,17 @@ export default function Dashboard() {
     }
   }, [stats])
 
-  if (loading) return <Loading label="Loading your dashboard…" />
+  if (loading)
+    return (
+      <div className="space-y-5 p-6">
+        <Skeleton className="h-7 w-48" />
+        <CardsSkeleton count={4} />
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+          <Skeleton className="h-48" />
+          <Skeleton className="h-48" />
+        </div>
+      </div>
+    )
   if (error) return <div className="p-6"><ErrorState message={error} onRetry={load} /></div>
   if (!stats) return null
 

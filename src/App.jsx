@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import Sidebar from './components/Sidebar.jsx'
 import ProfileSwitcher from './components/ProfileSwitcher.jsx'
 import LockScreen from './components/LockScreen.jsx'
+import CommandPalette from './components/CommandPalette.jsx'
 import { useProfiles } from './context/ProfileContext.jsx'
 import { useSettings } from './context/SettingsContext.jsx'
 import { Loading } from './components/ui.jsx'
@@ -43,6 +44,7 @@ export default function App() {
 
   return (
     <div className="flex h-full overflow-hidden">
+      <CommandPalette />
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-3 dark:border-slate-800 dark:bg-slate-900">

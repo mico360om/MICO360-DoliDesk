@@ -2,8 +2,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api } from '../api/ipc.js'
 import { getEntity } from '../lib/entities.js'
-import { ErrorState, Loading, SafeHtml, Spinner, StatusBadge } from '../components/ui.jsx'
+import { ErrorState, SafeHtml, Skeleton, Spinner, StatusBadge } from '../components/ui.jsx'
 import { useT } from '../lib/i18n.js'
+import { useToast } from '../context/ToastContext.jsx'
+import { getNeighbours } from '../lib/navCache.js'
 import { humanizeKey, formatMoney, formatNumber } from '../lib/format.js'
 
 // Content fields Dolibarr stores as HTML — rendered (sanitised) rather than escaped.
@@ -23,25 +25,23 @@ export default function RecordDetail() {
   const entity = getEntity(type)
   const navigate = useNavigate()
   const t = useT()
+  const { toast } = useToast()
   const [record, setRecord] = useState(null)
   const [customer, setCustomer] = useState(null) // { id, name }
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [showMore, setShowMore] = useState(false)
   const [pdfBusy, setPdfBusy] = useState(false)
-  const [toast, setToast] = useState(null)
 
   async function downloadPdf() {
     setPdfBusy(true)
-    setToast(null)
     try {
       const res = await api.savePdf({ type, id: record.id ?? record.rowid ?? id, ref: record.ref })
-      if (res.saved) setToast({ type: 'ok', message: `Saved to ${res.path}` })
+      if (res.saved) toast(`Saved to ${res.path}`, { type: 'success' })
     } catch (e) {
-      setToast({ type: 'error', message: e.message })
+      toast(e.message, { type: 'error' })
     } finally {
       setPdfBusy(false)
-      setTimeout(() => setToast(null), 6000)
     }
   }
 
@@ -101,14 +101,25 @@ export default function RecordDetail() {
     return String(v)
   }
 
+  const nb = getNeighbours(type, id)
+
   return (
-    <div className="mx-auto max-w-4xl p-6">
-      <button className="btn-ghost mb-4 -ml-2" onClick={() => navigate(`/records/${type}`)}>
-        ← Back to {entity.label}
-      </button>
+    <div className="mx-auto max-w-5xl p-6">
+      <div className="mb-4 flex items-center justify-between">
+        <button className="btn-ghost -ml-2" onClick={() => navigate(`/records/${type}`)}>
+          ← Back to {entity.label}
+        </button>
+        {(nb.prev || nb.next) && (
+          <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+            {nb.total != null && <span className="tabular-nums">{nb.index + 1} / {nb.total}</span>}
+            <button className="btn-outline px-2.5 py-1.5" disabled={!nb.prev} onClick={() => navigate(`/records/${type}/${nb.prev}`)} title="Previous">↑</button>
+            <button className="btn-outline px-2.5 py-1.5" disabled={!nb.next} onClick={() => navigate(`/records/${type}/${nb.next}`)} title="Next">↓</button>
+          </div>
+        )}
+      </div>
 
       {loading ? (
-        <Loading label="Loading record…" />
+        <DetailSkeleton />
       ) : error ? (
         <ErrorState message={error} onRetry={() => navigate(0)} />
       ) : !record ? (
@@ -152,24 +163,35 @@ export default function RecordDetail() {
             </div>
           </div>
 
-          {/* Key fields defined per entity */}
-          <div className="card mb-5 p-6">
-            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500">Details</h2>
-            <dl className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
-              {entity.detailFields
-                .filter((f) => record[f] !== undefined && record[f] !== null && record[f] !== '')
-                .map((f) => (
-                  <div key={f} className="min-w-0">
-                    <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">
-                      {humanizeKey(f)}
-                    </dt>
-                    <dd className="mt-0.5 break-words text-sm text-slate-800 dark:text-slate-200">
-                      {HTML_FIELDS.has(f) && isHtml(record[f]) ? <SafeHtml html={record[f]} /> : display(record[f])}
-                    </dd>
+          {/* On wide screens, key fields sit beside the line items so the
+              whole document fits without scrolling. */}
+          {(() => {
+            const hasLines = Array.isArray(record.lines) && record.lines.length > 0
+            return (
+              <div className={`mb-5 ${hasLines ? 'grid gap-5 xl:grid-cols-5 xl:items-start' : ''}`}>
+                <div className={`card p-6 ${hasLines ? 'xl:col-span-2' : ''}`}>
+                  <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500">Details</h2>
+                  <dl className={`grid grid-cols-1 gap-x-8 gap-y-4 ${hasLines ? '' : 'sm:grid-cols-2'}`}>
+                    {entity.detailFields
+                      .filter((f) => record[f] !== undefined && record[f] !== null && record[f] !== '')
+                      .map((f) => (
+                        <div key={f} className="min-w-0">
+                          <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">{humanizeKey(f)}</dt>
+                          <dd className="mt-0.5 break-words text-sm text-slate-800 dark:text-slate-200">
+                            {HTML_FIELDS.has(f) && isHtml(record[f]) ? <SafeHtml html={record[f]} /> : display(record[f])}
+                          </dd>
+                        </div>
+                      ))}
+                  </dl>
+                </div>
+                {hasLines && (
+                  <div className="xl:col-span-3">
+                    <LineItems lines={record.lines} record={record} />
                   </div>
-                ))}
-            </dl>
-          </div>
+                )}
+              </div>
+            )
+          })()}
 
           {/* HTML notes (public/private) — rendered, not escaped */}
           {['note_public', 'note_private'].filter((f) => isHtml(record[f])).length > 0 && (
@@ -186,11 +208,6 @@ export default function RecordDetail() {
                   ))}
               </div>
             </div>
-          )}
-
-          {/* Line items (invoices / orders / proposals) */}
-          {Array.isArray(record.lines) && record.lines.length > 0 && (
-            <LineItems lines={record.lines} record={record} />
           )}
 
           {/* Additional scalar fields — formatted, never a raw JSON dump */}
@@ -220,17 +237,30 @@ export default function RecordDetail() {
             </div>
           )}
 
-          {toast && (
-            <div
-              className={`pointer-events-none fixed bottom-6 left-1/2 z-30 -translate-x-1/2 rounded-lg px-4 py-2.5 text-sm text-white shadow-lg ${
-                toast.type === 'error' ? 'bg-rose-600' : 'bg-slate-800'
-              }`}
-            >
-              {toast.message}
-            </div>
-          )}
         </>
       )}
+    </div>
+  )
+}
+
+function DetailSkeleton() {
+  return (
+    <div className="space-y-5">
+      <div className="card p-6">
+        <Skeleton className="h-4 w-24" />
+        <Skeleton className="mt-3 h-7 w-64" />
+      </div>
+      <div className="card p-6">
+        <Skeleton className="h-3 w-20" />
+        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i}>
+              <Skeleton className="h-3 w-24" />
+              <Skeleton className="mt-1.5 h-4 w-40" />
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }

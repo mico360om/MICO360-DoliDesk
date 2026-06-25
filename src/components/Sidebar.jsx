@@ -13,13 +13,26 @@ function linkClass(collapsed) {
     } ${isActive ? 'bg-brand-600 text-white shadow-sm' : 'text-slate-300 hover:bg-slate-700/60 hover:text-white'}`
 }
 
+const NARROW = 1100 // px — auto-collapse below this width
+
 export default function Sidebar() {
   const t = useT()
-  const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSE_KEY) === '1')
+  const [userPref, setUserPref] = useState(() => localStorage.getItem(COLLAPSE_KEY) === '1')
+  const [narrow, setNarrow] = useState(() => window.innerWidth < NARROW)
 
+  // Auto-collapse on small windows; keep the user's choice when there's room.
   useEffect(() => {
-    localStorage.setItem(COLLAPSE_KEY, collapsed ? '1' : '0')
-  }, [collapsed])
+    const onResize = () => setNarrow(window.innerWidth < NARROW)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+
+  const collapsed = narrow || userPref
+  const setCollapsed = (v) => {
+    const next = typeof v === 'function' ? v(collapsed) : v
+    setUserPref(next)
+    localStorage.setItem(COLLAPSE_KEY, next ? '1' : '0')
+  }
 
   const cls = linkClass(collapsed)
 
@@ -63,16 +76,19 @@ export default function Sidebar() {
         <Item to="/modules" icon="🧩" label={t('nav.modules')} />
         <Item to="/profiles" icon="👤" label={t('nav.profiles')} />
         <Item to="/settings" icon="⚙️" label={t('nav.settings')} />
-        <button
-          onClick={() => setCollapsed((c) => !c)}
-          className={`flex w-full items-center rounded-lg py-2 text-sm font-medium text-slate-400 transition hover:bg-slate-700/60 hover:text-white ${
-            collapsed ? 'justify-center px-2' : 'gap-3 px-3'
-          }`}
-          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        >
-          <span className="text-base">{collapsed ? '»' : '«'}</span>
-          {!collapsed && <span>Collapse</span>}
-        </button>
+        {/* Manual collapse toggle — hidden when the window forces narrow mode. */}
+        {!narrow && (
+          <button
+            onClick={() => setCollapsed((c) => !c)}
+            className={`flex w-full items-center rounded-lg py-2 text-sm font-medium text-slate-400 transition hover:bg-slate-700/60 hover:text-white ${
+              collapsed ? 'justify-center px-2' : 'gap-3 px-3'
+            }`}
+            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            <span className="text-base">{collapsed ? '»' : '«'}</span>
+            {!collapsed && <span>Collapse</span>}
+          </button>
+        )}
       </div>
     </aside>
   )

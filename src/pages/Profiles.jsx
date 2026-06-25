@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useProfiles } from '../context/ProfileContext.jsx'
 import ProfileForm from '../components/ProfileForm.jsx'
-import { EmptyState } from '../components/ui.jsx'
+import { EmptyState, PageHeader } from '../components/ui.jsx'
 import { profiles as profilesApi } from '../api/ipc.js'
 
 export default function Profiles() {
@@ -33,17 +33,12 @@ export default function Profiles() {
 
   return (
     <div className="mx-auto max-w-4xl p-6">
-      <div className="mb-5 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100">Profiles</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Manage your Dolibarr accounts and API connections.</p>
-        </div>
-        {mode === null && (
-          <button className="btn-primary" onClick={() => setMode('add')}>
-            + Add profile
-          </button>
-        )}
-      </div>
+      <PageHeader
+        icon="👤"
+        title="Profiles"
+        subtitle="Manage your Dolibarr accounts and API connections."
+        actions={mode === null && <button className="btn-primary" onClick={() => setMode('add')}>+ Add profile</button>}
+      />
 
       {(mode === 'add' || editing) && (
         <div className="card mb-6 p-6">

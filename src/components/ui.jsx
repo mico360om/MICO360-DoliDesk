@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import DOMPurify from 'dompurify'
 
 // Renders Dolibarr HTML content (notes, descriptions) after sanitising it.
@@ -44,6 +45,67 @@ export function Spinner({ className = '' }) {
       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
     </svg>
+  )
+}
+
+// Shimmering placeholder block.
+export function Skeleton({ className = '' }) {
+  return <div className={`animate-pulse rounded-md bg-slate-200 dark:bg-slate-800 ${className}`} />
+}
+
+// Skeleton table for list loading states — feels faster than a spinner.
+export function TableSkeleton({ rows = 8, cols = 5 }) {
+  return (
+    <div className="card overflow-hidden">
+      <div className="flex gap-4 border-b border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-800/50">
+        {Array.from({ length: cols }).map((_, i) => (
+          <Skeleton key={i} className="h-3 flex-1" />
+        ))}
+      </div>
+      {Array.from({ length: rows }).map((_, r) => (
+        <div key={r} className="flex gap-4 border-b border-slate-100 px-4 py-3.5 last:border-0 dark:border-slate-800">
+          {Array.from({ length: cols }).map((_, c) => (
+            <Skeleton key={c} className="h-4 flex-1" />
+          ))}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// Grid of skeleton cards for dashboard-style loading.
+export function CardsSkeleton({ count = 4 }) {
+  return (
+    <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="card p-4">
+          <Skeleton className="h-3 w-20" />
+          <Skeleton className="mt-2 h-6 w-28" />
+          <Skeleton className="mt-2 h-3 w-16" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// Standard page wrapper — consistent max-width + padding across screens.
+export function Page({ children, wide = false }) {
+  return <div className={`mx-auto w-full p-6 ${wide ? 'max-w-6xl' : 'max-w-4xl'}`}>{children}</div>
+}
+
+// Standard page header: title, optional subtitle, and right-aligned actions.
+export function PageHeader({ icon, title, subtitle, actions }) {
+  return (
+    <div className="mb-5 flex items-start justify-between gap-4">
+      <div className="min-w-0">
+        <h1 className="flex items-center gap-2 text-xl font-bold text-slate-800 dark:text-slate-100">
+          {icon && <span>{icon}</span>}
+          {title}
+        </h1>
+        {subtitle && <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{subtitle}</p>}
+      </div>
+      {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+    </div>
   )
 }
 
@@ -102,6 +164,12 @@ export function Row({ title, subtitle, children }) {
 }
 
 export function ConfirmDialog({ open, title, message, confirmLabel = 'Confirm', danger, onConfirm, onCancel }) {
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e) => e.key === 'Escape' && onCancel?.()
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [open, onCancel])
   if (!open) return null
   return (
     <div className="fixed inset-0 z-40 grid place-items-center bg-slate-900/50 p-4" onClick={onCancel}>

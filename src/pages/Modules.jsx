@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../api/ipc.js'
 import { useProfiles } from '../context/ProfileContext.jsx'
-import { ErrorState, Loading, StatusBadge } from '../components/ui.jsx'
+import { ErrorState, Loading, PageHeader, StatusBadge } from '../components/ui.jsx'
 
 const METHOD_TONE = {
   GET: 'bg-emerald-50 text-emerald-700',
@@ -46,16 +46,13 @@ export default function Modules() {
   }, [data, query])
 
   return (
-    <div className="space-y-5 p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100">Modules</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            API modules enabled on <span className="font-medium text-slate-700 dark:text-slate-300">{activeProfile?.name}</span>
-          </p>
-        </div>
-        <button className="btn-outline" onClick={load} disabled={loading}>↻ Refresh</button>
-      </div>
+    <div className="mx-auto max-w-6xl space-y-5 p-6">
+      <PageHeader
+        icon="🧩"
+        title="Modules"
+        subtitle={<>API modules enabled on <span className="font-medium text-slate-700 dark:text-slate-300">{activeProfile?.name}</span></>}
+        actions={<button className="btn-outline" onClick={load} disabled={loading}>↻ Refresh</button>}
+      />
 
       {loading ? (
         <Loading label="Discovering installed modules…" />

@@ -4,6 +4,7 @@ import { HashRouter } from 'react-router-dom'
 import App from './App.jsx'
 import { ProfileProvider } from './context/ProfileContext.jsx'
 import { SettingsProvider } from './context/SettingsContext.jsx'
+import { ToastProvider } from './context/ToastContext.jsx'
 import './index.css'
 
 // HashRouter is used because the app is loaded from file:// in production,
@@ -13,7 +14,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <HashRouter>
       <SettingsProvider>
         <ProfileProvider>
-          <App />
+          <ToastProvider>
+            <App />
+          </ToastProvider>
         </ProfileProvider>
       </SettingsProvider>
     </HashRouter>

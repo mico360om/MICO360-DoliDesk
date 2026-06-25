@@ -4,8 +4,11 @@ import { api, exportFile } from '../api/ipc.js'
 import { getEntity, recordId, buildSqlSearch } from '../lib/entities.js'
 import { useColumnConfig } from '../lib/useColumnConfig.js'
 import { toCSV } from '../lib/csv.js'
+import { dateInRange } from '../lib/format.js'
+import { setNavIds } from '../lib/navCache.js'
 import { useProfiles } from '../context/ProfileContext.jsx'
-import { EmptyState, ErrorState, Loading, Spinner, StatusBadge } from '../components/ui.jsx'
+import { useToast } from '../context/ToastContext.jsx'
+import { EmptyState, ErrorState, Spinner, StatusBadge, TableSkeleton } from '../components/ui.jsx'
 
 const PAGE_SIZES = [25, 50, 100, 200]
 const EXPORT_CAP = 5000
@@ -17,11 +20,21 @@ const ACCENT = {
   slate: 'border-slate-200 bg-white text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200',
 }
 
+const DATE_RANGES = [
+  ['all', 'All dates'],
+  ['today', 'Today'],
+  ['week', 'This week'],
+  ['month', 'This month'],
+]
+
+const viewsKey = (type) => `dolidesk:views:${type}`
+
 export default function RecordList() {
   const { type } = useParams()
   const entity = getEntity(type)
   const navigate = useNavigate()
   const { activeId } = useProfiles()
+  const { toast } = useToast()
 
   const [rows, setRows] = useState([])
   const [names, setNames] = useState({})
@@ -32,11 +45,14 @@ export default function RecordList() {
   const [search, setSearch] = useState('')
   const [debounced, setDebounced] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [dateRange, setDateRange] = useState('all')
   const [sort, setSort] = useState({ key: null, dir: 'asc' })
   const [exporting, setExporting] = useState(false)
-  const [menu, setMenu] = useState(null) // 'export' | 'columns' | null
-  const [toast, setToast] = useState(null)
+  const [pdfBusyId, setPdfBusyId] = useState(null)
+  const [menu, setMenu] = useState(null) // 'export' | 'columns' | 'views' | null
+  const [views, setViews] = useState([])
   const menuRef = useRef(null)
+  const searchRef = useRef(null)
 
   const sqlfilters = useMemo(() => buildSqlSearch(entity, debounced), [entity, debounced])
 
@@ -50,7 +66,6 @@ export default function RecordList() {
     [entity, names]
   )
 
-  // The full column set: entity columns (+ injected Customer) + a Status column.
   const allColumns = useMemo(() => {
     if (!entity) return []
     const base = entity.socField
@@ -64,7 +79,6 @@ export default function RecordList() {
     allColumns
   )
 
-  // Resolve a cell to a plain string (used by sort, CSV, and non-status cells).
   const cellValue = useCallback(
     (col, r, map) => {
       if (col.isStatus) return entity.status(r).label
@@ -111,28 +125,42 @@ export default function RecordList() {
     return () => clearTimeout(id)
   }, [search])
 
-  useEffect(() => {
-    setPage(0)
-  }, [debounced, type, activeId])
+  useEffect(() => setPage(0), [debounced, type, activeId])
 
   useEffect(() => {
     setSearch('')
     setDebounced('')
     setStatusFilter('all')
+    setDateRange('all')
     setSort({ key: null, dir: 'asc' })
     setNames({})
+    try {
+      setViews(JSON.parse(localStorage.getItem(viewsKey(type)) || '[]'))
+    } catch {
+      setViews([])
+    }
   }, [type])
 
-  useEffect(() => {
-    load()
-  }, [load, activeId])
+  useEffect(() => { load() }, [load, activeId])
 
   useEffect(() => {
     function onClick(e) {
       if (menuRef.current && !menuRef.current.contains(e.target)) setMenu(null)
     }
+    function onKey(e) {
+      if (e.key === 'Escape') setMenu(null)
+      // "/" focuses the search box (unless already typing in a field).
+      if (e.key === '/' && !/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) {
+        e.preventDefault()
+        searchRef.current?.focus()
+      }
+    }
     document.addEventListener('mousedown', onClick)
-    return () => document.removeEventListener('mousedown', onClick)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onClick)
+      document.removeEventListener('keydown', onKey)
+    }
   }, [])
 
   const statusOptions = useMemo(() => {
@@ -149,6 +177,7 @@ export default function RecordList() {
     if (!entity) return []
     let out = rows
     if (statusFilter !== 'all') out = out.filter((r) => entity.status(r).label === statusFilter)
+    if (entity.dateField && dateRange !== 'all') out = out.filter((r) => dateInRange(r[entity.dateField], dateRange))
     if (sort.key) {
       const col = allColumns.find((c) => c.key === sort.key)
       out = [...out].sort((a, b) => {
@@ -160,7 +189,12 @@ export default function RecordList() {
     }
     return out
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, entity, statusFilter, sort, allColumns, names])
+  }, [rows, entity, statusFilter, dateRange, sort, allColumns, names])
+
+  // Expose the current ordered ids so the detail view can page prev/next.
+  useEffect(() => {
+    if (entity) setNavIds(entity.key, view.map((r) => recordId(r)))
+  }, [entity, view])
 
   const summary = useMemo(() => (entity?.summary ? entity.summary(view) : null), [entity, view])
 
@@ -182,58 +216,114 @@ export default function RecordList() {
     setMenu(null)
     setExporting(true)
     try {
-      let records
+      let records = view
       let map = names
       if (scope === 'all') {
         const { rows: all, complete } = await api.listAll(entity.key, {
-          sortfield: entity.sortfield,
-          sortorder: 'DESC',
-          sqlfilters,
-          cap: EXPORT_CAP,
+          sortfield: entity.sortfield, sortorder: 'DESC', sqlfilters, cap: EXPORT_CAP,
         })
         records = all
         if (entity.socField && all.length) {
           const ids = [...new Set(all.map((r) => String(r[entity.socField])).filter((x) => x && x !== '0'))]
           map = await api.resolveThirdparties(ids)
         }
-        if (!complete) setToast(`Exported the first ${EXPORT_CAP} records (dataset is larger).`)
-      } else {
-        records = view
+        if (!complete) toast(`Exported the first ${EXPORT_CAP} records (dataset is larger).`, { type: 'info' })
       }
       const content = buildCsv(records, map)
       const stamp = new Date().toISOString().slice(0, 10)
       const res = await exportFile({ defaultName: `${entity.key}-${scope}-${stamp}.csv`, content })
-      if (res.saved) setToast(`Saved ${records.length} record${records.length === 1 ? '' : 's'} to ${res.path}`)
+      if (res.saved) toast(`Saved ${records.length} record${records.length === 1 ? '' : 's'}`, { type: 'success' })
     } catch (e) {
-      setToast('Export failed: ' + e.message)
+      toast('Export failed: ' + e.message, { type: 'error' })
     } finally {
       setExporting(false)
-      setTimeout(() => setToast(null), 6000)
     }
   }
 
-  const visibleCount = visibleColumns.length
+  async function downloadPdf(r) {
+    const id = recordId(r)
+    setPdfBusyId(id)
+    try {
+      const res = await api.savePdf({ type, id, ref: r.ref })
+      if (res.saved) toast('PDF saved', { type: 'success' })
+    } catch (e) {
+      toast('PDF download failed: ' + e.message, { type: 'error' })
+    } finally {
+      setPdfBusyId(null)
+    }
+  }
+
+  async function copyRef(r) {
+    try {
+      await navigator.clipboard.writeText(r.ref || String(recordId(r)))
+      toast('Reference copied', { type: 'success' })
+    } catch {
+      toast('Could not copy', { type: 'error' })
+    }
+  }
+
+  // ---- Saved views ----
+  function persistViews(next) {
+    setViews(next)
+    localStorage.setItem(viewsKey(type), JSON.stringify(next))
+  }
+  function saveCurrentView() {
+    const name = window.prompt('Name this view (search + filters + sort):')
+    if (!name) return
+    const v = { name: name.trim(), search, statusFilter, dateRange, sort }
+    persistViews([...views.filter((x) => x.name !== v.name), v])
+    setMenu(null)
+    toast(`View "${v.name}" saved`, { type: 'success' })
+  }
+  function applyView(v) {
+    setSearch(v.search || '')
+    setDebounced((v.search || '').trim())
+    setStatusFilter(v.statusFilter || 'all')
+    setDateRange(v.dateRange || 'all')
+    setSort(v.sort || { key: null, dir: 'asc' })
+    setMenu(null)
+  }
+  function deleteView(name) {
+    persistViews(views.filter((x) => x.name !== name))
+  }
 
   return (
     <div className="flex h-full flex-col">
-      {/* Header + toolbar */}
-      <div className="border-b border-slate-200 bg-white px-6 pb-4 pt-5 dark:border-slate-800 dark:bg-slate-900">
+      {/* Sticky header + toolbar */}
+      <div className="sticky top-0 z-20 border-b border-slate-200 bg-white px-6 pb-4 pt-5 dark:border-slate-800 dark:bg-slate-900">
         <div className="mb-4 flex items-center justify-between">
           <h1 className="flex items-center gap-2 text-xl font-bold text-slate-800 dark:text-slate-100">
             <span>{entity.icon}</span> {entity.label}
             <span className="ml-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-sm font-medium text-slate-500 dark:bg-slate-800 dark:text-slate-400">
-              {view.length}
-              {view.length !== rows.length ? ` / ${rows.length}` : ''}
+              {view.length}{view.length !== rows.length ? ` / ${rows.length}` : ''}
             </span>
           </h1>
           <div className="flex items-center gap-2" ref={menuRef}>
-            {/* Column chooser */}
+            {/* Saved views */}
+            <div className="relative">
+              <button className="btn-outline" onClick={() => setMenu((m) => (m === 'views' ? null : 'views'))}>★ Views</button>
+              {menu === 'views' && (
+                <div className="absolute right-0 z-30 mt-2 w-60 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-900">
+                  <button className="block w-full px-4 py-2.5 text-left text-sm font-medium text-brand-700 hover:bg-slate-50 dark:text-brand-300 dark:hover:bg-slate-800" onClick={saveCurrentView}>
+                    + Save current view
+                  </button>
+                  {views.length > 0 && <div className="border-t border-slate-100 dark:border-slate-800" />}
+                  {views.map((v) => (
+                    <div key={v.name} className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-800">
+                      <button className="flex-1 truncate text-left text-slate-700 dark:text-slate-200" onClick={() => applyView(v)}>{v.name}</button>
+                      <button className="text-slate-400 hover:text-rose-500" onClick={() => deleteView(v.name)} title="Delete">✕</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            {/* Columns */}
             <div className="relative">
               <button className="btn-outline" onClick={() => setMenu((m) => (m === 'columns' ? null : 'columns'))}>
                 ⚙ Columns{isCustomized ? ' •' : ''}
               </button>
               {menu === 'columns' && (
-                <div className="absolute right-0 z-20 mt-2 w-64 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-900">
+                <div className="absolute right-0 z-30 mt-2 w-64 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-900">
                   <div className="flex items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
                     <span>Columns</span>
                     <button className="font-medium text-brand-600 hover:underline dark:text-brand-400" onClick={reset}>Reset</button>
@@ -241,33 +331,13 @@ export default function RecordList() {
                   <ul className="max-h-80 overflow-y-auto py-1">
                     {orderedColumns.map((c, i) => {
                       const hidden = isHidden(c.key)
-                      const lastVisible = !hidden && visibleCount === 1
+                      const lastVisible = !hidden && visibleColumns.length === 1
                       return (
                         <li key={c.key} className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-800">
-                          <input
-                            type="checkbox"
-                            className="h-4 w-4 accent-brand-600"
-                            checked={!hidden}
-                            disabled={lastVisible}
-                            onChange={() => toggle(c.key)}
-                          />
+                          <input type="checkbox" className="h-4 w-4 accent-brand-600" checked={!hidden} disabled={lastVisible} onChange={() => toggle(c.key)} />
                           <span className="flex-1 truncate text-slate-700 dark:text-slate-200">{c.label}</span>
-                          <button
-                            className="rounded px-1 text-slate-400 hover:text-slate-700 disabled:opacity-30 dark:hover:text-slate-200"
-                            disabled={i === 0}
-                            onClick={() => move(c.key, 'up')}
-                            title="Move up"
-                          >
-                            ↑
-                          </button>
-                          <button
-                            className="rounded px-1 text-slate-400 hover:text-slate-700 disabled:opacity-30 dark:hover:text-slate-200"
-                            disabled={i === orderedColumns.length - 1}
-                            onClick={() => move(c.key, 'down')}
-                            title="Move down"
-                          >
-                            ↓
-                          </button>
+                          <button className="rounded px-1 text-slate-400 hover:text-slate-700 disabled:opacity-30 dark:hover:text-slate-200" disabled={i === 0} onClick={() => move(c.key, 'up')} title="Move up">↑</button>
+                          <button className="rounded px-1 text-slate-400 hover:text-slate-700 disabled:opacity-30 dark:hover:text-slate-200" disabled={i === orderedColumns.length - 1} onClick={() => move(c.key, 'down')} title="Move down">↓</button>
                         </li>
                       )
                     })}
@@ -275,154 +345,126 @@ export default function RecordList() {
                 </div>
               )}
             </div>
-
-            {/* Export menu */}
+            {/* Export */}
             <div className="relative">
               <button className="btn-outline" onClick={() => setMenu((m) => (m === 'export' ? null : 'export'))} disabled={exporting || rows.length === 0}>
                 {exporting ? <Spinner className="h-4 w-4" /> : '⬇'} Export CSV
               </button>
               {menu === 'export' && (
-                <div className="absolute right-0 z-20 mt-2 w-56 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-900">
-                  <button className="block w-full px-4 py-2.5 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-800" onClick={() => doExport('page')}>
-                    Export current view ({view.length})
-                  </button>
-                  <button className="block w-full border-t border-slate-100 px-4 py-2.5 text-left text-sm hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800" onClick={() => doExport('all')}>
-                    Export all matching records
-                  </button>
+                <div className="absolute right-0 z-30 mt-2 w-56 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-900">
+                  <button className="block w-full px-4 py-2.5 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-800" onClick={() => doExport('page')}>Export current view ({view.length})</button>
+                  <button className="block w-full border-t border-slate-100 px-4 py-2.5 text-left text-sm hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800" onClick={() => doExport('all')}>Export all matching records</button>
                 </div>
               )}
             </div>
-
             <button className="btn-outline" onClick={load} disabled={loading}>↻ Refresh</button>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <div className="relative min-w-[260px] flex-1">
+          <div className="relative min-w-[240px] flex-1">
             <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
-            <input
-              className="input pl-9"
-              placeholder={`Search all ${entity.label.toLowerCase()}…`}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+            <input ref={searchRef} className="input pl-9" placeholder={`Search all ${entity.label.toLowerCase()}…  ( / )`} value={search} onChange={(e) => setSearch(e.target.value)} />
             {search && loading && <Spinner className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2" />}
           </div>
+
+          {entity.dateField && (
+            <select className="input w-auto" value={dateRange} onChange={(e) => setDateRange(e.target.value)}>
+              {DATE_RANGES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+          )}
 
           {statusOptions.length > 1 && (
             <select className="input w-auto" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
               <option value="all">All statuses</option>
-              {statusOptions.map((s) => (
-                <option key={s.label} value={s.label}>{s.label}</option>
-              ))}
+              {statusOptions.map((s) => <option key={s.label} value={s.label}>{s.label}</option>)}
             </select>
           )}
 
           <select className="input w-auto" value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setPage(0) }}>
-            {PAGE_SIZES.map((s) => (
-              <option key={s} value={s}>{s} / page</option>
-            ))}
+            {PAGE_SIZES.map((s) => <option key={s} value={s}>{s} / page</option>)}
           </select>
         </div>
       </div>
 
       {/* Body */}
-      <div className="min-h-0 flex-1 overflow-auto p-6">
-        {/* Summary bar */}
-        {summary && !loading && !error && rows.length > 0 && (
-          <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-            {summary.map((m) => (
-              <div key={m.label} className={`rounded-xl border px-4 py-3 ${ACCENT[m.accent] || ACCENT.slate}`}>
-                <div className="text-xs font-medium uppercase tracking-wide opacity-70">{m.label}</div>
-                <div className="mt-0.5 text-lg font-bold tabular-nums">{m.value}</div>
-                {m.sub && <div className="text-xs opacity-70">{m.sub}</div>}
-              </div>
-            ))}
-          </div>
-        )}
+      <div className="min-h-0 flex-1 overflow-auto">
+        <div className="p-6">
+          {summary && !loading && !error && rows.length > 0 && (
+            <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+              {summary.map((m) => (
+                <div key={m.label} className={`rounded-xl border px-4 py-3 ${ACCENT[m.accent] || ACCENT.slate}`}>
+                  <div className="text-xs font-medium uppercase tracking-wide opacity-70">{m.label}</div>
+                  <div className="mt-0.5 text-lg font-bold tabular-nums">{m.value}</div>
+                  {m.sub && <div className="text-xs opacity-70">{m.sub}</div>}
+                </div>
+              ))}
+            </div>
+          )}
 
-        {loading ? (
-          <Loading label={`Loading ${entity.label.toLowerCase()}…`} />
-        ) : error ? (
-          <ErrorState message={error} onRetry={load} />
-        ) : rows.length === 0 ? (
-          <EmptyState
-            icon={entity.icon}
-            title={debounced ? 'No matches' : `No ${entity.label.toLowerCase()} found`}
-            subtitle={
-              debounced
-                ? 'No records match your search across the dataset.'
-                : 'There are no records here, or this module may be disabled in Dolibarr.'
-            }
-          />
-        ) : (
-          <div className="card overflow-hidden">
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400">
-                  {visibleColumns.map((c) => (
-                    <th
-                      key={c.key}
-                      className={`cursor-pointer select-none px-4 py-3 font-semibold hover:text-slate-700 dark:hover:text-slate-200 ${c.align === 'right' ? 'text-right' : ''}`}
-                      onClick={() => toggleSort(c.key)}
-                    >
-                      {c.label}
-                      {sort.key === c.key && (sort.dir === 'asc' ? ' ▲' : ' ▼')}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {view.map((r) => {
-                  const id = recordId(r)
-                  return (
-                    <tr
-                      key={id}
-                      className="cursor-pointer border-b border-slate-100 last:border-0 hover:bg-brand-50/50 dark:border-slate-800 dark:hover:bg-slate-800/50"
-                      onClick={() => navigate(`/records/${entity.key}/${id}`)}
-                    >
-                      {visibleColumns.map((c) => {
-                        if (c.isStatus) {
-                          const s = entity.status(r)
+          {loading ? (
+            <TableSkeleton cols={visibleColumns.length || 5} />
+          ) : error ? (
+            <ErrorState message={error} onRetry={load} />
+          ) : rows.length === 0 ? (
+            <EmptyState
+              icon={entity.icon}
+              title={debounced ? 'No matches' : `No ${entity.label.toLowerCase()} found`}
+              subtitle={debounced ? 'No records match your search across the dataset.' : 'There are no records here, or this module may be disabled in Dolibarr.'}
+            />
+          ) : (
+            <div className="card">
+              <table className="w-full border-collapse text-sm">
+                <thead>
+                  <tr className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-400">
+                    {visibleColumns.map((c) => (
+                      <th key={c.key} className={`cursor-pointer select-none px-4 py-3 font-semibold hover:text-slate-700 dark:hover:text-slate-200 ${c.align === 'right' ? 'text-right' : ''}`} onClick={() => toggleSort(c.key)}>
+                        {c.label}{sort.key === c.key && (sort.dir === 'asc' ? ' ▲' : ' ▼')}
+                      </th>
+                    ))}
+                    <th className="w-px px-4 py-3" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {view.map((r) => {
+                    const id = recordId(r)
+                    return (
+                      <tr key={id} className="group cursor-pointer border-b border-slate-100 last:border-0 hover:bg-brand-50/50 dark:border-slate-800 dark:hover:bg-slate-800/50" onClick={() => navigate(`/records/${entity.key}/${id}`)}>
+                        {visibleColumns.map((c) => {
+                          if (c.isStatus) {
+                            const s = entity.status(r)
+                            return <td key={c.key} className="px-4 py-3 text-right"><StatusBadge label={s.label} tone={s.tone} /></td>
+                          }
                           return (
-                            <td key={c.key} className="px-4 py-3 text-right">
-                              <StatusBadge label={s.label} tone={s.tone} />
+                            <td key={c.key} className={`px-4 py-3 ${c.align === 'right' ? 'text-right tabular-nums' : ''} ${c.grow ? 'font-medium text-slate-800 dark:text-slate-100' : 'text-slate-600 dark:text-slate-300'}`}>
+                              {cellValue(c, r)}
                             </td>
                           )
-                        }
-                        return (
-                          <td
-                            key={c.key}
-                            className={`px-4 py-3 ${c.align === 'right' ? 'text-right tabular-nums' : ''} ${
-                              c.grow ? 'font-medium text-slate-800 dark:text-slate-100' : 'text-slate-600 dark:text-slate-300'
-                            }`}
-                          >
-                            {cellValue(c, r)}
-                          </td>
-                        )
-                      })}
-                    </tr>
-                  )
-                })}
-                {view.length === 0 && (
-                  <tr>
-                    <td colSpan={visibleColumns.length} className="px-4 py-10 text-center text-sm text-slate-400">
-                      No records match the status filter.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
+                        })}
+                        {/* Inline row actions (appear on hover) */}
+                        <td className="px-3 py-2 text-right" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-end gap-1 opacity-0 transition group-hover:opacity-100">
+                            <IconBtn title="Open" onClick={() => navigate(`/records/${entity.key}/${id}`)}>↗</IconBtn>
+                            {entity.hasLines && (
+                              <IconBtn title="Download PDF" onClick={() => downloadPdf(r)} busy={pdfBusyId === id}>⬇</IconBtn>
+                            )}
+                            <IconBtn title="Copy reference" onClick={() => copyRef(r)}>⧉</IconBtn>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                  {view.length === 0 && (
+                    <tr><td colSpan={visibleColumns.length + 1} className="px-4 py-10 text-center text-sm text-slate-400">No records match the current filters.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
 
-      {toast && (
-        <div className="pointer-events-none fixed bottom-6 left-1/2 z-30 -translate-x-1/2 rounded-lg bg-slate-800 px-4 py-2.5 text-sm text-white shadow-lg">
-          {toast}
-        </div>
-      )}
-
+      {/* Pagination */}
       {!loading && !error && rows.length > 0 && (
         <div className="flex items-center justify-between border-t border-slate-200 bg-white px-6 py-3 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
           <span>Page {page + 1} · showing {rows.length} record{rows.length === 1 ? '' : 's'}</span>
@@ -433,5 +475,18 @@ export default function RecordList() {
         </div>
       )}
     </div>
+  )
+}
+
+function IconBtn({ title, onClick, busy, children }) {
+  return (
+    <button
+      title={title}
+      onClick={onClick}
+      disabled={busy}
+      className="flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+    >
+      {busy ? <Spinner className="h-3.5 w-3.5" /> : children}
+    </button>
   )
 }

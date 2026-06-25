@@ -107,6 +107,31 @@ function moneySummary(rows, { dateField, ttc = 'total_ttc', ht = 'total_ht', unp
   return metrics
 }
 
+function productSummary(rows) {
+  const n = (r, f) => toNumber(r[f]) || 0
+  const onSale = rows.filter((r) => Number(r.status) === 1).length
+  const stock = rows.reduce((s, r) => s + n(r, 'stock_reel'), 0)
+  const value = rows.reduce((s, r) => s + n(r, 'stock_reel') * n(r, 'price'), 0)
+  return [
+    { label: 'Products', value: String(rows.length), accent: 'slate' },
+    { label: 'On sale', value: String(onSale), accent: 'emerald' },
+    { label: 'Total stock', value: formatNumber(stock), accent: 'slate' },
+    { label: 'Stock value', value: formatMoney(value), accent: 'brand' },
+  ]
+}
+
+function thirdpartySummary(rows) {
+  const customers = rows.filter((r) => [1, 3].includes(Number(r.client))).length
+  const suppliers = rows.filter((r) => Number(r.fournisseur) === 1).length
+  const active = rows.filter((r) => Number(r.status) === 1).length
+  return [
+    { label: 'Third parties', value: String(rows.length), accent: 'slate' },
+    { label: 'Customers', value: String(customers), accent: 'brand' },
+    { label: 'Suppliers', value: String(suppliers), accent: 'amber' },
+    { label: 'Active', value: String(active), accent: 'emerald' },
+  ]
+}
+
 // ---- Entity registry -------------------------------------------------------
 
 export const ENTITIES = {
@@ -119,6 +144,7 @@ export const ENTITIES = {
     title: (r) => r.name || r.name_alias || `#${pickId(r)}`,
     subtitle: (r) => [r.town, r.country_code].filter(Boolean).join(', '),
     status: thirdpartyStatus,
+    summary: (rows) => thirdpartySummary(rows),
     // Fields scanned by the in-app (client-side) search box.
     searchFields: ['name', 'name_alias', 'email', 'town', 'code_client', 'phone'],
     // DB columns used for server-side sqlfilters search (whole dataset).
@@ -172,6 +198,7 @@ export const ENTITIES = {
     title: (r) => r.label || r.ref || `#${pickId(r)}`,
     subtitle: (r) => r.ref || '',
     status: productStatus,
+    summary: (rows) => productSummary(rows),
     searchFields: ['ref', 'label', 'barcode'],
     sqlSearch: ['t.ref', 't.label', 't.barcode'],
     amountField: 'price_ttc',
