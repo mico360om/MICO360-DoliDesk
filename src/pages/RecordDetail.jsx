@@ -2,8 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api } from '../api/ipc.js'
 import { getEntity } from '../lib/entities.js'
-import { ErrorState, Loading, StatusBadge } from '../components/ui.jsx'
+import { ErrorState, Loading, SafeHtml, Spinner, StatusBadge } from '../components/ui.jsx'
+import { useT } from '../lib/i18n.js'
 import { humanizeKey, formatMoney, formatNumber } from '../lib/format.js'
+
+// Content fields Dolibarr stores as HTML — rendered (sanitised) rather than escaped.
+const HTML_FIELDS = new Set(['note_public', 'note_private', 'note', 'description'])
+const isHtml = (v) => typeof v === 'string' && /<[a-z][\s\S]*>/i.test(v)
 
 // Internal / noisy keys we never surface in the "more fields" grid.
 const HIDDEN_FIELDS = new Set([
@@ -17,11 +22,28 @@ export default function RecordDetail() {
   const { type, id } = useParams()
   const entity = getEntity(type)
   const navigate = useNavigate()
+  const t = useT()
   const [record, setRecord] = useState(null)
   const [customer, setCustomer] = useState(null) // { id, name }
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [showMore, setShowMore] = useState(false)
+  const [pdfBusy, setPdfBusy] = useState(false)
+  const [toast, setToast] = useState(null)
+
+  async function downloadPdf() {
+    setPdfBusy(true)
+    setToast(null)
+    try {
+      const res = await api.savePdf({ type, id: record.id ?? record.rowid ?? id, ref: record.ref })
+      if (res.saved) setToast({ type: 'ok', message: `Saved to ${res.path}` })
+    } catch (e) {
+      setToast({ type: 'error', message: e.message })
+    } finally {
+      setPdfBusy(false)
+      setTimeout(() => setToast(null), 6000)
+    }
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -102,7 +124,7 @@ export default function RecordDetail() {
                   <span>·</span>
                   <span>#{record.id ?? record.rowid ?? id}</span>
                 </div>
-                <h1 className="truncate text-2xl font-bold text-slate-800">{entity.title(record)}</h1>
+                <h1 className="truncate text-2xl font-bold text-slate-800 dark:text-slate-100">{entity.title(record)}</h1>
                 <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-500">
                   {entity.subtitle(record) && <span>{entity.subtitle(record)}</span>}
                   {customer && (
@@ -119,7 +141,14 @@ export default function RecordDetail() {
                   )}
                 </div>
               </div>
-              {status && <StatusBadge label={status.label} tone={status.tone} />}
+              <div className="flex shrink-0 flex-col items-end gap-3">
+                {status && <StatusBadge label={status.label} tone={status.tone} />}
+                {entity.hasLines && (
+                  <button className="btn-outline" onClick={downloadPdf} disabled={pdfBusy} title="Download the generated PDF">
+                    {pdfBusy ? <Spinner className="h-4 w-4" /> : '⬇'} {t('action.downloadPdf')}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
@@ -134,11 +163,30 @@ export default function RecordDetail() {
                     <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">
                       {humanizeKey(f)}
                     </dt>
-                    <dd className="mt-0.5 break-words text-sm text-slate-800">{display(record[f])}</dd>
+                    <dd className="mt-0.5 break-words text-sm text-slate-800 dark:text-slate-200">
+                      {HTML_FIELDS.has(f) && isHtml(record[f]) ? <SafeHtml html={record[f]} /> : display(record[f])}
+                    </dd>
                   </div>
                 ))}
             </dl>
           </div>
+
+          {/* HTML notes (public/private) — rendered, not escaped */}
+          {['note_public', 'note_private'].filter((f) => isHtml(record[f])).length > 0 && (
+            <div className="card mb-5 p-6">
+              <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500">Notes</h2>
+              <div className="space-y-4">
+                {['note_public', 'note_private']
+                  .filter((f) => record[f] && isHtml(record[f]))
+                  .map((f) => (
+                    <div key={f}>
+                      <div className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-400">{humanizeKey(f)}</div>
+                      <SafeHtml html={record[f]} />
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
 
           {/* Line items (invoices / orders / proposals) */}
           {Array.isArray(record.lines) && record.lines.length > 0 && (
@@ -149,24 +197,36 @@ export default function RecordDetail() {
           {moreFields.length > 0 && (
             <div className="card overflow-hidden">
               <button
-                className="flex w-full items-center justify-between px-6 py-4 text-left text-sm font-semibold text-slate-600 hover:bg-slate-50"
+                className="flex w-full items-center justify-between px-6 py-4 text-left text-sm font-semibold text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800"
                 onClick={() => setShowMore((s) => !s)}
               >
                 <span>More fields ({moreFields.length})</span>
                 <span className="text-slate-400">{showMore ? '▲' : '▼'}</span>
               </button>
               {showMore && (
-                <dl className="grid grid-cols-1 gap-x-8 gap-y-4 border-t border-slate-100 px-6 py-5 sm:grid-cols-2">
+                <dl className="grid grid-cols-1 gap-x-8 gap-y-4 border-t border-slate-100 px-6 py-5 dark:border-slate-800 sm:grid-cols-2">
                   {moreFields.map(([k, v]) => (
                     <div key={k} className="min-w-0">
                       <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">
                         {humanizeKey(k)}
                       </dt>
-                      <dd className="mt-0.5 break-words text-sm text-slate-800">{display(v)}</dd>
+                      <dd className="mt-0.5 break-words text-sm text-slate-800 dark:text-slate-200">
+                        {isHtml(v) ? <SafeHtml html={v} /> : display(v)}
+                      </dd>
                     </div>
                   ))}
                 </dl>
               )}
+            </div>
+          )}
+
+          {toast && (
+            <div
+              className={`pointer-events-none fixed bottom-6 left-1/2 z-30 -translate-x-1/2 rounded-lg px-4 py-2.5 text-sm text-white shadow-lg ${
+                toast.type === 'error' ? 'bg-rose-600' : 'bg-slate-800'
+              }`}
+            >
+              {toast.message}
             </div>
           )}
         </>

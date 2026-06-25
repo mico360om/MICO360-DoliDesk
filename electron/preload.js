@@ -21,6 +21,8 @@ contextBridge.exposeInMainWorld('dolidesk', {
     resolveThirdparties: (ids) => ipcRenderer.invoke('api:resolveThirdparties', ids),
     modules: () => ipcRenderer.invoke('api:modules'),
     company: () => ipcRenderer.invoke('api:company'),
+    documents: (type, id) => ipcRenderer.invoke('api:documents', type, id),
+    savePdf: (payload) => ipcRenderer.invoke('documents:savePdf', payload),
   },
   settings: {
     get: () => ipcRenderer.invoke('settings:get'),

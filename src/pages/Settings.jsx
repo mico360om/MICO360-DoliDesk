@@ -4,6 +4,7 @@ import { useSettings } from '../context/SettingsContext.jsx'
 import { useProfiles } from '../context/ProfileContext.jsx'
 import { Toggle, Row, ConfirmDialog, Toast } from '../components/ui.jsx'
 import { BRAND } from '../lib/brand.js'
+import { LANGUAGES } from '../lib/i18n.js'
 import { AboutPage, PrivacyPage, TermsPage } from './legal.jsx'
 import {
   settings as settingsApi,
@@ -107,7 +108,14 @@ function DisplaySection() {
   const { settings, update } = useSettings()
   const d = settings.display
   return (
-    <Card title="Display" desc="Appearance, density and zoom. Changes apply instantly and are saved.">
+    <Card title="Display" desc="Appearance, language, density and zoom. Changes apply instantly and are saved.">
+      <Row title="Language" subtitle="Interface language (Arabic switches to right-to-left).">
+        <select className="input w-auto" value={d.language || 'en'} onChange={(e) => update('display', { language: e.target.value })}>
+          {LANGUAGES.map((l) => (
+            <option key={l.code} value={l.code}>{l.label}</option>
+          ))}
+        </select>
+      </Row>
       <Row title="Theme" subtitle="Light, dark, or follow your system.">
         <Segmented
           value={d.theme}

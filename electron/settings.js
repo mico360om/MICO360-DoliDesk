@@ -15,6 +15,7 @@ const DEFAULTS = {
     density: 'comfortable', // 'comfortable' | 'compact'
     zoom: 100, // 100 | 125 | 150 | 175
     dashboardLayout: 'default',
+    language: 'en', // UI language code
   },
   updates: {
     autoUpdate: true,

@@ -18,6 +18,16 @@
   [data-density='compact'] table th {
     @apply py-1.5;
   }
+
+  /* Basic styling for sanitised Dolibarr HTML content. */
+  .prose-dolibarr p { @apply my-1.5; }
+  .prose-dolibarr ul { @apply my-1.5 list-disc pl-5; }
+  .prose-dolibarr ol { @apply my-1.5 list-decimal pl-5; }
+  .prose-dolibarr a { @apply text-brand-600 underline dark:text-brand-400; }
+  .prose-dolibarr strong { @apply font-semibold; }
+  .prose-dolibarr table { @apply my-2 border-collapse; }
+  .prose-dolibarr td, .prose-dolibarr th { @apply border border-slate-200 px-2 py-1 dark:border-slate-700; }
+  .prose-dolibarr img { @apply max-w-full; }
 }
 
 @layer components {

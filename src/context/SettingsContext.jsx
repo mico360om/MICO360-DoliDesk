@@ -3,8 +3,10 @@ import { settings as settingsApi } from '../api/ipc.js'
 
 const SettingsContext = createContext(null)
 
+const RTL_LANGS = new Set(['ar', 'he', 'fa', 'ur'])
+
 const FALLBACK = {
-  display: { theme: 'system', density: 'comfortable', zoom: 100, dashboardLayout: 'default' },
+  display: { theme: 'system', density: 'comfortable', zoom: 100, dashboardLayout: 'default', language: 'en' },
   updates: { autoUpdate: true, checkOnStartup: true },
   security: { lockEnabled: false, maskApiKey: true, hasPin: false },
   notifications: { updates: true, apiErrors: true, syncComplete: true },
@@ -20,6 +22,10 @@ function applyDisplay(display) {
   root.classList.toggle('dark', wantDark)
   root.setAttribute('data-density', display.density || 'comfortable')
   root.style.zoom = `${(display.zoom || 100) / 100}`
+  // Language + text direction (RTL for Arabic etc.).
+  const lang = display.language || 'en'
+  root.setAttribute('lang', lang)
+  root.setAttribute('dir', RTL_LANGS.has(lang) ? 'rtl' : 'ltr')
 }
 
 export function SettingsProvider({ children }) {

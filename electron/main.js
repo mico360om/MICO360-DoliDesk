@@ -156,6 +156,24 @@ function registerIpc() {
   ipcMain.handle('api:resolveThirdparties', wrap((ids) => dolibarr.resolveThirdparties(activeOrThrow(), ids)))
   ipcMain.handle('api:modules', wrap(() => dolibarr.getModules(activeOrThrow())))
   ipcMain.handle('api:company', wrap(() => dolibarr.getCompany(activeOrThrow())))
+  ipcMain.handle('api:documents', wrap((type, id) => dolibarr.listDocuments(activeOrThrow(), type, id)))
+
+  // Download a record's PDF and save it via the native dialog.
+  ipcMain.handle('documents:savePdf', async (event, { type, id, ref }) => {
+    try {
+      const doc = await dolibarr.downloadRecordPdf(activeOrThrow(), type, id, ref)
+      const win = BrowserWindow.fromWebContents(event.sender)
+      const { canceled, filePath } = await dialog.showSaveDialog(win, {
+        defaultPath: doc.filename || `${ref || 'document'}.pdf`,
+        filters: [{ name: 'PDF', extensions: ['pdf'] }],
+      })
+      if (canceled || !filePath) return { ok: true, data: { saved: false } }
+      fs.writeFileSync(filePath, Buffer.from(doc.content, 'base64'))
+      return { ok: true, data: { saved: true, path: filePath } }
+    } catch (err) {
+      return { ok: false, error: err.message }
+    }
+  })
 
   // Settings
   ipcMain.handle('settings:get', wrap(() => settings.getSettings()))

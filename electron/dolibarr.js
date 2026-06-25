@@ -207,6 +207,59 @@ const CORE_MODULES = new Set([
   'holidays', 'events', 'ficheinter', 'prelevements',
 ])
 
+// Dolibarr "modulepart" codes used by the documents API, keyed by our type.
+const MODULE_PART = {
+  invoices: 'facture',
+  orders: 'commande',
+  proposals: 'propal',
+  thirdparties: 'societe',
+  products: 'product',
+}
+
+// List the files attached to a record (typically the generated PDF).
+async function listDocuments(profile, type, id) {
+  const modulepart = MODULE_PART[type]
+  if (!modulepart) return []
+  try {
+    const data = await request(profile, '/documents', { params: { modulepart, id } })
+    return Array.isArray(data) ? data : []
+  } catch (err) {
+    if (err.status === 404) return []
+    throw err
+  }
+}
+
+// Download a single document. Dolibarr returns base64-encoded content.
+// Returns { filename, type, content (base64) }.
+async function downloadDocument(profile, type, originalFile) {
+  const modulepart = MODULE_PART[type]
+  if (!modulepart) throw new Error('Documents are not available for this record type.')
+  const data = await request(profile, '/documents/download', {
+    params: { modulepart, original_file: originalFile },
+  })
+  if (!data || !data.content) throw new Error('The document could not be retrieved.')
+  return {
+    filename: data.filename || originalFile.split('/').pop(),
+    type: data['content-type'] || 'application/octet-stream',
+    content: data.content,
+  }
+}
+
+// Convenience: find and download the record's PDF. Tries the document list
+// first, then falls back to the conventional <ref>/<ref>.pdf path.
+async function downloadRecordPdf(profile, type, id, ref) {
+  const docs = await listDocuments(profile, type, id)
+  const pdf = docs.find((d) => /\.pdf$/i.test(d.name || d.relativename || ''))
+  if (pdf) {
+    const original = pdf.relativename || pdf.level1name ? `${pdf.level1name || ''}/${pdf.name}`.replace(/^\//, '') : pdf.name
+    return downloadDocument(profile, type, pdf.relativename || original || pdf.name)
+  }
+  if (ref) {
+    return downloadDocument(profile, type, `${ref}/${ref}.pdf`)
+  }
+  throw new Error('No PDF found for this record. Generate it in Dolibarr first.')
+}
+
 // Fetch the configured company ("mysoc") details for the active instance —
 // name, address, logo filename, currency, etc. Used to brand the UI per
 // profile. Returns null if the endpoint is unavailable.
@@ -360,4 +413,5 @@ async function testConnection(profile) {
 module.exports = {
   request, list, listAll, getOne, resolveThirdparties, clearCaches,
   login, getModules, getCompany, testConnection, ENTITIES, apiBase,
+  listDocuments, downloadDocument, downloadRecordPdf,
 }

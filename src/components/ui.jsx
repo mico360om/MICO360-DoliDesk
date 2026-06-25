@@ -1,3 +1,21 @@
+import DOMPurify from 'dompurify'
+
+// Renders Dolibarr HTML content (notes, descriptions) after sanitising it.
+// Strips scripts/event-handlers/javascript: URLs so remote HTML is XSS-safe.
+export function SafeHtml({ html, className = '' }) {
+  const clean = DOMPurify.sanitize(html || '', {
+    USE_PROFILES: { html: true },
+    FORBID_TAGS: ['style', 'script', 'iframe', 'form', 'input'],
+    FORBID_ATTR: ['style'],
+  })
+  return (
+    <div
+      className={`prose-dolibarr text-sm leading-relaxed text-slate-700 dark:text-slate-300 ${className}`}
+      dangerouslySetInnerHTML={{ __html: clean }}
+    />
+  )
+}
+
 // Small shared presentational pieces used across pages.
 
 const TONES = {

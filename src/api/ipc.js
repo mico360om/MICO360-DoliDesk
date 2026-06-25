@@ -28,6 +28,8 @@ export const api = {
   resolveThirdparties: async (ids) => unwrap(await bridge.api.resolveThirdparties(ids)),
   modules: async () => unwrap(await bridge.api.modules()),
   company: async () => unwrap(await bridge.api.company()),
+  documents: async (type, id) => unwrap(await bridge.api.documents(type, id)),
+  savePdf: async (payload) => unwrap(await bridge.api.savePdf(payload)),
 }
 
 export const settings = {
