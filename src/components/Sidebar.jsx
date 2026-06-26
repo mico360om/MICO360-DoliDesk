@@ -121,7 +121,8 @@ export default function Sidebar() {
             {(filtered || items).map((it) => (
               <Item key={it.key} to={it.to} icon={it.icon} label={it.label} />
             ))}
-            {(!q) && hasStatements && !hidden.has('mico360statements') && (
+            {!q && !hidden.has('reports') && <Item to="/reports" icon="📈" label="Reports" />}
+            {!q && hasStatements && !hidden.has('mico360statements') && (
               <Item to="/statements" icon="📑" label="Client Statements" />
             )}
           </>
@@ -135,12 +136,13 @@ export default function Sidebar() {
                 ))}
               </div>
             ))}
-            {hasStatements && !hidden.has('mico360statements') && (
-              <div>
-                <SectionLabel>Reports</SectionLabel>
+            <div>
+              <SectionLabel>Reports</SectionLabel>
+              {!hidden.has('reports') && <Item to="/reports" icon="📈" label="Reports" />}
+              {hasStatements && !hidden.has('mico360statements') && (
                 <Item to="/statements" icon="📑" label="Client Statements" />
-              </div>
-            )}
+              )}
+            </div>
           </>
         )}
       </nav>

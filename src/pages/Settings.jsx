@@ -171,6 +171,7 @@ function MenuSection() {
   } else {
     for (const e of ENTITY_LIST) items.push({ key: e.key, icon: e.icon, label: e.label })
   }
+  items.push({ key: 'reports', icon: '📈', label: 'Reports' })
   const hasStatements = !modules || [...modules].some((k) => k.includes('statement'))
   if (hasStatements) items.push({ key: 'mico360statements', icon: '📑', label: 'Client Statements' })
   items.push({ key: 'modules', icon: '🧩', label: 'Modules' })
