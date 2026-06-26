@@ -35,6 +35,7 @@ export const api = {
   statementAgeing: async (socid, params) => unwrap(await bridge.api.statementAgeing(socid, params)),
   statementEmailLog: async (params) => unwrap(await bridge.api.statementEmailLog(params)),
   documents: async (type, id) => unwrap(await bridge.api.documents(type, id)),
+  fetchPdf: async (type, id, ref) => unwrap(await bridge.api.fetchPdf(type, id, ref)),
   savePdf: async (payload) => unwrap(await bridge.api.savePdf(payload)),
 }
 

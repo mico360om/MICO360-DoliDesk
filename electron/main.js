@@ -56,7 +56,7 @@ function applyProductionCsp() {
       responseHeaders: {
         ...details.responseHeaders,
         'Content-Security-Policy': [
-          "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; script-src 'self'; connect-src 'self'",
+          "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; script-src 'self'; connect-src 'self'; frame-src 'self' blob:; object-src 'self' blob: data:",
         ],
       },
     })
@@ -183,6 +183,9 @@ function registerIpc() {
     return { ok: true }
   }))
   ipcMain.handle('api:documents', wrap((type, id) => dolibarr.listDocuments(activeOrThrow(), type, id)))
+
+  // Fetch a record's PDF bytes (base64) for in-app viewing.
+  ipcMain.handle('documents:fetchPdf', wrap((type, id, ref) => dolibarr.downloadRecordPdf(activeOrThrow(), type, id, ref)))
 
   // Download a record's PDF and save it via the native dialog.
   ipcMain.handle('documents:savePdf', async (event, { type, id, ref }) => {

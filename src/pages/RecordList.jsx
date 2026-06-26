@@ -7,6 +7,7 @@ import { toCSV } from '../lib/csv.js'
 import { dateInRange } from '../lib/format.js'
 import { dolibarrWebUrl } from '../lib/dolibarrUrl.js'
 import { setNavIds } from '../lib/navCache.js'
+import PdfViewer from '../components/PdfViewer.jsx'
 import { useProfiles } from '../context/ProfileContext.jsx'
 import { useToast } from '../context/ToastContext.jsx'
 import { EmptyState, ErrorState, Spinner, StatusBadge, TableSkeleton } from '../components/ui.jsx'
@@ -50,6 +51,8 @@ export default function RecordList() {
   const [sort, setSort] = useState({ key: null, dir: 'asc' })
   const [exporting, setExporting] = useState(false)
   const [pdfBusyId, setPdfBusyId] = useState(null)
+  const [viewBusyId, setViewBusyId] = useState(null)
+  const [pdfDoc, setPdfDoc] = useState(null)
   const [menu, setMenu] = useState(null) // 'export' | 'columns' | 'views' | null
   const [views, setViews] = useState([])
   const menuRef = useRef(null)
@@ -254,6 +257,19 @@ export default function RecordList() {
     }
   }
 
+  async function viewPdf(r) {
+    const id = recordId(r)
+    setViewBusyId(id)
+    try {
+      const doc = await api.fetchPdf(type, id, r.ref)
+      setPdfDoc({ doc, title: entity.title(r), record: r })
+    } catch (e) {
+      toast('PDF unavailable: ' + e.message, { type: 'error' })
+    } finally {
+      setViewBusyId(null)
+    }
+  }
+
   async function copyRef(r) {
     try {
       await navigator.clipboard.writeText(r.ref || String(recordId(r)))
@@ -447,6 +463,9 @@ export default function RecordList() {
                           <div className="flex items-center justify-end gap-1 opacity-0 transition group-hover:opacity-100">
                             <IconBtn title="Open" onClick={() => navigate(`/records/${entity.key}/${id}`)}>↗</IconBtn>
                             {entity.hasLines && (
+                              <IconBtn title="View PDF" onClick={() => viewPdf(r)} busy={viewBusyId === id}>📄</IconBtn>
+                            )}
+                            {entity.hasLines && (
                               <IconBtn title="Download PDF" onClick={() => downloadPdf(r)} busy={pdfBusyId === id}>⬇</IconBtn>
                             )}
                             <IconBtn title="Copy reference" onClick={() => copyRef(r)}>⧉</IconBtn>
@@ -477,6 +496,15 @@ export default function RecordList() {
             <button className="btn-outline" disabled={rows.length < pageSize} onClick={() => setPage((p) => p + 1)} title={rows.length < pageSize ? 'No more pages' : ''}>Next →</button>
           </div>
         </div>
+      )}
+
+      {pdfDoc && (
+        <PdfViewer
+          doc={pdfDoc.doc}
+          title={pdfDoc.title}
+          onClose={() => setPdfDoc(null)}
+          onDownload={() => downloadPdf(pdfDoc.record)}
+        />
       )}
     </div>
   )

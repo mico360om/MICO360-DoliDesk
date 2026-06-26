@@ -28,6 +28,7 @@ contextBridge.exposeInMainWorld('dolidesk', {
     statementAgeing: (socid, params) => ipcRenderer.invoke('api:statementAgeing', socid, params),
     statementEmailLog: (params) => ipcRenderer.invoke('api:statementEmailLog', params),
     documents: (type, id) => ipcRenderer.invoke('api:documents', type, id),
+    fetchPdf: (type, id, ref) => ipcRenderer.invoke('documents:fetchPdf', type, id, ref),
     savePdf: (payload) => ipcRenderer.invoke('documents:savePdf', payload),
   },
   settings: {

@@ -8,6 +8,7 @@ import { useToast } from '../context/ToastContext.jsx'
 import { useProfiles } from '../context/ProfileContext.jsx'
 import { getNeighbours } from '../lib/navCache.js'
 import { dolibarrWebUrl } from '../lib/dolibarrUrl.js'
+import PdfViewer from '../components/PdfViewer.jsx'
 import { humanizeKey, formatNumber, recordMoney, lineMoney, extraFields } from '../lib/format.js'
 
 // Content fields Dolibarr stores as HTML — rendered (sanitised) rather than escaped.
@@ -62,6 +63,8 @@ export default function RecordDetail() {
   const [error, setError] = useState(null)
   const [showMore, setShowMore] = useState(false)
   const [pdfBusy, setPdfBusy] = useState(false)
+  const [viewBusy, setViewBusy] = useState(false)
+  const [pdfDoc, setPdfDoc] = useState(null)
 
   async function downloadPdf() {
     setPdfBusy(true)
@@ -72,6 +75,18 @@ export default function RecordDetail() {
       toast(e.message, { type: 'error' })
     } finally {
       setPdfBusy(false)
+    }
+  }
+
+  async function viewPdf() {
+    setViewBusy(true)
+    try {
+      const doc = await api.fetchPdf(type, record.id ?? record.rowid ?? id, record.ref)
+      setPdfDoc(doc)
+    } catch (e) {
+      toast(e.message, { type: 'error' })
+    } finally {
+      setViewBusy(false)
     }
   }
 
@@ -184,6 +199,11 @@ export default function RecordDetail() {
               </div>
               <div className="flex shrink-0 flex-col items-end gap-3">
                 {status && <StatusBadge label={status.label} tone={status.tone} />}
+                {entity.hasLines && (
+                  <button className="btn-primary" onClick={viewPdf} disabled={viewBusy} title="View the generated PDF in the app">
+                    {viewBusy ? <Spinner className="h-4 w-4" /> : '📄'} View PDF
+                  </button>
+                )}
                 {entity.hasLines && (
                   <button className="btn-outline" onClick={downloadPdf} disabled={pdfBusy} title="Download the generated PDF">
                     {pdfBusy ? <Spinner className="h-4 w-4" /> : '⬇'} {t('action.downloadPdf')}
@@ -315,6 +335,15 @@ export default function RecordDetail() {
           )}
 
         </>
+      )}
+
+      {pdfDoc && (
+        <PdfViewer
+          doc={pdfDoc}
+          title={record ? entity.title(record) : pdfDoc.filename}
+          onClose={() => setPdfDoc(null)}
+          onDownload={downloadPdf}
+        />
       )}
     </div>
   )
