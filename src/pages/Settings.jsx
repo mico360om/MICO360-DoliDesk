@@ -157,6 +157,7 @@ function MenuSection() {
   const { settings, update } = useSettings()
   const { moduleList, modules } = useProfiles()
   const hidden = new Set(settings.display.hiddenMenu || [])
+  const [query, setQuery] = useState('')
 
   const items = []
   if (moduleList && moduleList.length) {
@@ -179,16 +180,37 @@ function MenuSection() {
     update('display', { hiddenMenu: next })
   }
 
+  const q = query.trim().toLowerCase()
+  const visible = q ? items.filter((it) => it.label.toLowerCase().includes(q)) : items
+  const hiddenCount = items.filter((it) => hidden.has(it.key)).length
+
   return (
     <Card
       title="Main menu"
       desc="Show or hide items in the left navigation. Dashboard, Profiles and Settings always stay visible."
     >
-      {items.map((it) => (
+      <div className="flex items-center gap-2 py-3">
+        <div className="relative flex-1">
+          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
+          <input
+            className="input pl-9"
+            placeholder="Search menu items…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </div>
+        {hiddenCount > 0 && (
+          <button className="btn-ghost shrink-0" onClick={() => update('display', { hiddenMenu: [] })}>
+            Show all ({hiddenCount} hidden)
+          </button>
+        )}
+      </div>
+      {visible.map((it) => (
         <Row key={it.key} title={<span><span className="mr-1.5">{it.icon}</span>{it.label}</span>}>
           <Toggle checked={!hidden.has(it.key)} onChange={() => toggle(it.key)} />
         </Row>
       ))}
+      {visible.length === 0 && <div className="py-4 text-center text-sm text-slate-400">No menu items match “{query}”.</div>}
     </Card>
   )
 }
