@@ -56,6 +56,25 @@ export function formatMoney(v, currency) {
   return new Intl.NumberFormat(undefined, opts).format(n)
 }
 
+// Compact money for dashboard cards (e.g. "OMR 4.16M") so long amounts don't
+// get cut off. Small amounts render in full. Pair with a tooltip of the full value.
+export function formatMoneyShort(v, currency) {
+  const n = toNumber(v)
+  if (n === null) return '—'
+  if (Math.abs(n) >= 100000) {
+    const opts = { notation: 'compact', maximumFractionDigits: 2 }
+    if (currency) {
+      try {
+        return new Intl.NumberFormat(undefined, { style: 'currency', currency, ...opts }).format(n)
+      } catch {
+        /* fall through */
+      }
+    }
+    return new Intl.NumberFormat(undefined, opts).format(n)
+  }
+  return formatMoney(n, currency)
+}
+
 export function formatNumber(v) {
   const n = toNumber(v)
   if (n === null) return '—'

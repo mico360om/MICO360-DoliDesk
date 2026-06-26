@@ -87,7 +87,9 @@ function send(channel, payload) {
 
 function setupAutoUpdate() {
   if (!autoUpdater) return
-  autoUpdater.autoDownload = false
+  // Download updates automatically as soon as they're found, so they're ready
+  // to install quickly; the renderer shows progress and a restart prompt.
+  autoUpdater.autoDownload = true
   autoUpdater.on('checking-for-update', () => send('update:status', { state: 'checking' }))
   autoUpdater.on('update-available', (info) => send('update:status', { state: 'available', version: info?.version }))
   autoUpdater.on('update-not-available', (info) => send('update:status', { state: 'none', version: info?.version }))

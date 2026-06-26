@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api } from '../api/ipc.js'
-import { EmptyState, ErrorState, Loading, SafeHtml } from '../components/ui.jsx'
+import { ApiErrorPanel, EmptyState, Loading, SafeHtml } from '../components/ui.jsx'
+import { getModuleMeta } from '../lib/moduleMeta.js'
 import { formatDate, formatMoney, humanizeKey, extraFields } from '../lib/format.js'
 
 // Generic browser for any Dolibarr module endpoint (used for custom modules
@@ -64,14 +65,15 @@ export function ExploreList() {
   useEffect(() => { load() }, [load])
 
   const columns = useMemo(() => inferColumns(rows), [rows])
+  const meta = getModuleMeta(module)
 
   return (
     <div className="flex h-full flex-col">
       <div className="border-b border-slate-200 bg-white px-6 pb-4 pt-5 dark:border-slate-800 dark:bg-slate-900">
         <button className="btn-ghost mb-2 -ml-2" onClick={() => navigate('/modules')}>← Modules</button>
         <div className="flex items-center justify-between">
-          <h1 className="flex items-center gap-2 text-xl font-bold capitalize text-slate-800 dark:text-slate-100">
-            🧩 {module}
+          <h1 className="flex items-center gap-2 text-xl font-bold text-slate-800 dark:text-slate-100">
+            <span>{meta.icon}</span> {meta.label}
             <span className="ml-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-sm font-medium text-slate-500 dark:bg-slate-800 dark:text-slate-400">{rows.length}</span>
           </h1>
           <button className="btn-outline" onClick={load} disabled={loading}>↻ Refresh</button>
@@ -80,11 +82,11 @@ export function ExploreList() {
 
       <div className="min-h-0 flex-1 overflow-auto p-6">
         {loading ? (
-          <Loading label={`Loading ${module}…`} />
+          <Loading label={`Loading ${meta.label}…`} />
         ) : error ? (
-          <ErrorState message={error} onRetry={load} />
+          <ApiErrorPanel title={`Couldn’t load ${meta.label}`} endpoint={`/${module}`} error={error} onRetry={load} onBack={() => navigate('/modules')} />
         ) : rows.length === 0 ? (
-          <EmptyState icon="🧩" title="No records" subtitle={`The ${module} endpoint returned nothing on this page.`} />
+          <EmptyState icon={meta.icon} title="No records yet" subtitle={`There are no ${meta.label.toLowerCase()} to show, or this module has no data on this page.`} />
         ) : (
           <div className="card overflow-x-auto">
             <table className="w-full border-collapse text-sm">
@@ -152,19 +154,21 @@ export function ExploreDetail() {
     return Object.entries(record).filter(([k, v]) => !SKIP.has(k) && v !== null && v !== undefined && v !== '' && typeof v !== 'object')
   }, [record])
 
+  const meta = getModuleMeta(module)
+
   return (
     <div className="mx-auto max-w-4xl p-6">
-      <button className="btn-ghost mb-4 -ml-2" onClick={() => navigate(`/explore/${module}`)}>← Back to {module}</button>
+      <button className="btn-ghost mb-4 -ml-2" onClick={() => navigate(`/explore/${module}`)}>← Back to {meta.label}</button>
       {loading ? (
         <Loading label="Loading record…" />
       ) : error ? (
-        <ErrorState message={error} onRetry={() => navigate(0)} />
+        <ApiErrorPanel title={`Couldn’t load this ${meta.label.toLowerCase()} record`} endpoint={`/${module}/${id}`} error={error} onRetry={() => navigate(0)} onBack={() => navigate(`/explore/${module}`)} />
       ) : !record ? (
-        <ErrorState title="Not found" />
+        <ApiErrorPanel title="Record not found" endpoint={`/${module}/${id}`} error="Not found" onBack={() => navigate(`/explore/${module}`)} />
       ) : (
         <>
           <div className="card mb-5 p-6">
-            <div className="text-sm text-slate-400 capitalize">🧩 {module} · #{recId(record)}</div>
+            <div className="text-sm text-slate-400">{meta.icon} {meta.label} · #{recId(record)}</div>
             <h1 className="mt-1 text-2xl font-bold text-slate-800 dark:text-slate-100">
               {record.ref || record.label || record.name || record.title || `#${recId(record)}`}
             </h1>

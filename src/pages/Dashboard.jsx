@@ -4,7 +4,7 @@ import { api } from '../api/ipc.js'
 import { ENTITIES, recordId } from '../lib/entities.js'
 import { useProfiles } from '../context/ProfileContext.jsx'
 import { CardsSkeleton, ErrorState, Skeleton, StatusBadge } from '../components/ui.jsx'
-import { formatMoney, recordMoney, toNumber, toDate } from '../lib/format.js'
+import { formatMoney, formatMoneyShort, recordMoney, toNumber, toDate } from '../lib/format.js'
 import { Donut, BarChart, HBars, Legend } from '../components/charts.jsx'
 
 const CAP = 1000 // max records pulled per entity for accurate headline figures
@@ -46,6 +46,7 @@ export default function Dashboard() {
   const [error, setError] = useState(null)
   const [custNames, setCustNames] = useState({})
   const [period, setPeriod] = useState('all')
+  const [syncedAt, setSyncedAt] = useState(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -67,6 +68,7 @@ export default function Dashboard() {
         })
       )
       setData(Object.fromEntries(settled))
+      setSyncedAt(new Date())
     } catch (e) {
       setError(e.message)
     } finally {
@@ -112,17 +114,26 @@ export default function Dashboard() {
       { label: '31–60 days', tone: 'amber', value: 0 },
       { label: '60+ days', tone: 'red', value: 0 },
     ]
+    let overdueCount = 0
+    let overdueTotal = 0
     for (const r of unpaid) {
       const due = toDate(r.date_lim_reglement || r.date_echeance)
       const amt = toNumber(r.total_ttc) || 0
       if (!due) { buckets[0].value += amt; continue }
       const days = Math.floor((now - due.getTime()) / 86400000)
       if (days <= 0) buckets[0].value += amt
-      else if (days <= 30) buckets[1].value += amt
-      else if (days <= 60) buckets[2].value += amt
-      else buckets[3].value += amt
+      else {
+        overdueCount += 1
+        overdueTotal += amt
+        if (days <= 30) buckets[1].value += amt
+        else if (days <= 60) buckets[2].value += amt
+        else buckets[3].value += amt
+      }
     }
     const aging = buckets.map((b) => ({ ...b, display: formatMoney(b.value, baseCurrency) }))
+    const paidCount = invAll.filter((r) => ENTITIES.invoices.status(r).label === 'Paid').length
+    const customersCount = tp.filter((r) => [1, 3].includes(Number(r.client))).length
+    const suppliersCount = tp.filter((r) => Number(r.fournisseur) === 1).length
 
     // Invoice status breakdown (current period).
     const sb = { Paid: 0, Unpaid: 0, Draft: 0, Other: 0 }
@@ -169,6 +180,8 @@ export default function Dashboard() {
       invoiceDelta: start ? delta(invoiceTotal, sum(invPrev, 'total_ttc')) : null,
       orderDelta: start ? delta(orderTotal, sum(ordersPrev, 'total_ttc')) : null,
       aging, statusSegments, monthly, topCustomers, pipeline,
+      paidCount, unpaidCount: unpaid.length, overdueCount, overdueTotal, customersCount, suppliersCount,
+      totalInvoices: invAll.length,
       errors: {
         thirdparties: data.thirdparties?.error,
         invoices: data.invoices?.error,
@@ -222,7 +235,8 @@ export default function Dashboard() {
         <div>
           <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100">Dashboard</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            <span className="font-medium text-slate-700 dark:text-slate-300">{activeProfile?.name}</span> · up to {CAP.toLocaleString()} records per type
+            <span className="font-medium text-slate-700 dark:text-slate-300">{activeProfile?.name}</span>
+            {syncedAt && <> · Last synced {syncedAt.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</>}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -247,12 +261,22 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* KPI row */}
+      {/* KPI row — compact figures with full value on hover */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <KpiCard icon="💰" tone="brand" label="Invoiced (incl. tax)" value={formatMoney(stats.invoiceTotal, baseCurrency)} hint={`${stats.inv.length} invoices`} delta={stats.invoiceDelta} />
-        <KpiCard icon="⏳" tone="amber" label="Outstanding" value={formatMoney(stats.unpaidTotal, baseCurrency)} hint={`${stats.unpaid.length} unpaid`} />
-        <KpiCard icon="📑" tone="emerald" label="Orders (incl. tax)" value={formatMoney(stats.orderTotal, baseCurrency)} hint={`${stats.orders.length} orders`} delta={stats.orderDelta} />
-        <KpiCard icon="🧾" tone="violet" label="Avg. invoice" value={formatMoney(stats.avgInvoice, baseCurrency)} hint={period === 'all' ? 'all invoices' : periodLabel.toLowerCase()} />
+        <KpiCard icon="💰" tone="brand" label="Invoiced (incl. tax)" value={formatMoneyShort(stats.invoiceTotal, baseCurrency)} full={formatMoney(stats.invoiceTotal, baseCurrency)} hint={`${stats.inv.length} invoices`} delta={stats.invoiceDelta} />
+        <KpiCard icon="⏳" tone="amber" label="Outstanding" value={formatMoneyShort(stats.unpaidTotal, baseCurrency)} full={formatMoney(stats.unpaidTotal, baseCurrency)} hint={`${stats.unpaid.length} unpaid`} />
+        <KpiCard icon="📑" tone="emerald" label="Orders (incl. tax)" value={formatMoneyShort(stats.orderTotal, baseCurrency)} full={formatMoney(stats.orderTotal, baseCurrency)} hint={`${stats.orders.length} orders`} delta={stats.orderDelta} />
+        <KpiCard icon="🧾" tone="violet" label="Avg. invoice" value={formatMoneyShort(stats.avgInvoice, baseCurrency)} full={formatMoney(stats.avgInvoice, baseCurrency)} hint={period === 'all' ? 'all invoices' : periodLabel.toLowerCase()} />
+      </div>
+
+      {/* Quick stats */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <MiniStat label="Total invoices" value={count('invoices')} icon="🧾" />
+        <MiniStat label="Paid" value={stats.paidCount} icon="✅" tone="emerald" />
+        <MiniStat label="Unpaid" value={stats.unpaidCount} icon="⏳" tone="amber" />
+        <MiniStat label="Overdue" value={stats.overdueCount} icon="⚠️" tone="rose" sub={formatMoneyShort(stats.overdueTotal, baseCurrency)} />
+        <MiniStat label="Customers" value={stats.customersCount} icon="🏢" />
+        <MiniStat label="Suppliers" value={stats.suppliersCount} icon="🚚" />
       </div>
 
       {/* Aging + pipeline */}
@@ -367,7 +391,7 @@ function buildMonthly(invoices, months, currency) {
 
 // ---- presentational --------------------------------------------------------
 
-function KpiCard({ icon, label, value, hint, tone, delta }) {
+function KpiCard({ icon, label, value, full, hint, tone, delta }) {
   const ring = {
     brand: 'bg-brand-50 text-brand-600 dark:bg-brand-950/50 dark:text-brand-300',
     amber: 'bg-amber-50 text-amber-600 dark:bg-amber-950/50 dark:text-amber-300',
@@ -379,7 +403,7 @@ function KpiCard({ icon, label, value, hint, tone, delta }) {
       <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xl ${ring[tone]}`}>{icon}</span>
       <div className="min-w-0">
         <div className="truncate text-xs font-medium uppercase tracking-wide text-slate-400">{label}</div>
-        <div className="truncate text-xl font-bold tabular-nums text-slate-800 dark:text-slate-100">{value}</div>
+        <div className="truncate text-xl font-bold tabular-nums text-slate-800 dark:text-slate-100" title={full || undefined}>{value}</div>
         <div className="flex items-center gap-1.5 text-xs">
           {delta != null && (
             <span className={`font-semibold ${delta >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
@@ -388,6 +412,23 @@ function KpiCard({ icon, label, value, hint, tone, delta }) {
           )}
           <span className="truncate text-slate-400">{hint}</span>
         </div>
+      </div>
+    </div>
+  )
+}
+
+function MiniStat({ label, value, icon, tone, sub }) {
+  const color = {
+    emerald: 'text-emerald-600 dark:text-emerald-400',
+    amber: 'text-amber-600 dark:text-amber-400',
+    rose: 'text-rose-600 dark:text-rose-400',
+  }[tone] || 'text-slate-800 dark:text-slate-100'
+  return (
+    <div className="card flex items-center gap-3 p-3">
+      <span className="text-lg">{icon}</span>
+      <div className="min-w-0">
+        <div className={`text-lg font-bold leading-tight tabular-nums ${color}`}>{value}</div>
+        <div className="truncate text-xs text-slate-500 dark:text-slate-400">{label}{sub ? ` · ${sub}` : ''}</div>
       </div>
     </div>
   )

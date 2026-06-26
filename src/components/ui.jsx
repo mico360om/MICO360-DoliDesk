@@ -1,5 +1,58 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import DOMPurify from 'dompurify'
+import { appInfo } from '../api/ipc.js'
+import { BRAND } from '../lib/brand.js'
+
+// Turn a raw API error into a plain-language reason for end users.
+function explainError(error) {
+  const e = String(error || '').toLowerCase()
+  if (e.includes('not found') || e.includes('404'))
+    return 'The API endpoint was not found. The module may be enabled but its REST API is not available on this Dolibarr version.'
+  if (e.includes('internal server') || e.includes('500'))
+    return 'The server returned an internal error. Check the module configuration or that its REST API is enabled in Dolibarr.'
+  if (e.includes('forbidden') || e.includes('denied') || e.includes('permission') || e.includes('401') || e.includes('403'))
+    return 'Access was denied. The API user may not have permission for this module.'
+  if (e.includes('timed out') || e.includes('reach') || e.includes('network'))
+    return 'The server could not be reached. Check your internet connection and the API URL.'
+  return 'The request failed. See the technical details below.'
+}
+
+// Rich error panel for module/API failures — clear reason, endpoint, and
+// recovery actions (retry, back, copy details, report).
+export function ApiErrorPanel({ title = 'Couldn’t load this module', endpoint, error, onRetry, onBack }) {
+  const [copied, setCopied] = useState(false)
+  const details = [`${title}`, endpoint ? `Endpoint: ${endpoint}` : '', `Error: ${error || 'unknown'}`, `App: ${BRAND.appName}`, `Time: ${new Date().toISOString()}`]
+    .filter(Boolean)
+    .join('\n')
+
+  return (
+    <div className="mx-auto max-w-xl py-12 text-center">
+      <div className="text-4xl">⚠️</div>
+      <h2 className="mt-3 text-lg font-semibold text-slate-800 dark:text-slate-100">{title}</h2>
+      <p className="mx-auto mt-1 max-w-md text-sm text-slate-500 dark:text-slate-400">{explainError(error)}</p>
+      {endpoint && (
+        <div className="mt-3 inline-block rounded-md bg-slate-100 px-2.5 py-1 font-mono text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+          {endpoint}
+        </div>
+      )}
+      <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+        {onRetry && <button className="btn-primary" onClick={onRetry}>↻ Retry</button>}
+        {onBack && <button className="btn-outline" onClick={onBack}>← Back to Modules</button>}
+        <button
+          className="btn-outline"
+          onClick={() => { navigator.clipboard?.writeText(details).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500) }) }}
+        >
+          {copied ? '✓ Copied' : '⧉ Copy error details'}
+        </button>
+        <button className="btn-outline" onClick={() => appInfo.openExternal(BRAND.issues)}>🐛 Report issue</button>
+      </div>
+      <details className="mx-auto mt-5 max-w-md text-left">
+        <summary className="cursor-pointer text-xs font-medium text-slate-400 hover:text-slate-600">Technical details</summary>
+        <pre className="mt-2 overflow-auto rounded-lg bg-slate-50 p-3 text-left text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300">{details}</pre>
+      </details>
+    </div>
+  )
+}
 
 // Renders Dolibarr HTML content (notes, descriptions) after sanitising it.
 // Strips scripts/event-handlers/javascript: URLs so remote HTML is XSS-safe.

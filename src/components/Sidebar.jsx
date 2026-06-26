@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { ENTITY_LIST, getEntity } from '../lib/entities.js'
-import { getModuleMeta, NON_BROWSABLE } from '../lib/moduleMeta.js'
+import { getModuleMeta, getModuleGroup, NON_BROWSABLE, SECTIONS } from '../lib/moduleMeta.js'
 import { useT } from '../lib/i18n.js'
 import { useProfiles } from '../context/ProfileContext.jsx'
 import { useSettings } from '../context/SettingsContext.jsx'
@@ -22,10 +22,11 @@ export default function Sidebar() {
   const { companyLogo, moduleList, modules } = useProfiles()
   const { settings } = useSettings()
   const hidden = useMemo(() => new Set(settings.display.hiddenMenu || []), [settings.display.hiddenMenu])
-  // Statements live in the bottom nav. Optimistic while modules are loading.
   const hasStatements = !modules || [...modules].some((k) => k.includes('statement'))
+
   const [userPref, setUserPref] = useState(() => localStorage.getItem(COLLAPSE_KEY) === '1')
   const [narrow, setNarrow] = useState(() => window.innerWidth < NARROW)
+  const [query, setQuery] = useState('')
 
   useEffect(() => {
     const onResize = () => setNarrow(window.innerWidth < NARROW)
@@ -41,26 +42,37 @@ export default function Sidebar() {
   }
   const cls = linkClass(collapsed)
 
-  // Build the record navigation from the instance's enabled API modules. Each
-  // module routes to its curated view when we have one, the Client Statements
-  // page for the statement module, or the generic read-only viewer otherwise.
-  const navItems = useMemo(() => {
-    if (moduleList && moduleList.length) {
-      return moduleList
-        .filter((m) => m.methods.includes('GET') && !NON_BROWSABLE.has(m.key) && !m.key.includes('statement'))
-        .map((m) => {
-          const curated = getEntity(m.key)
-          const meta = getModuleMeta(m.key)
-          const to = curated ? `/records/${m.key}` : `/explore/${m.key}`
-          return { key: m.key, to, icon: curated?.icon || meta.icon, label: curated?.label || meta.label }
-        })
-        .sort((a, b) => a.label.localeCompare(b.label))
-    }
-    // Fallback before discovery completes (or if it fails): curated core types.
-    return ENTITY_LIST.map((e) => ({ key: e.key, to: `/records/${e.key}`, icon: e.icon, label: e.label }))
-  }, [moduleList])
+  // Build record nav from the instance's enabled modules (curated view where
+  // available, generic viewer otherwise), excluding statements/system tags.
+  const items = useMemo(() => {
+    const list = (moduleList && moduleList.length)
+      ? moduleList
+          .filter((m) => m.methods.includes('GET') && !NON_BROWSABLE.has(m.key) && !m.key.includes('statement'))
+          .map((m) => {
+            const curated = getEntity(m.key)
+            const meta = getModuleMeta(m.key)
+            return { key: m.key, to: curated ? `/records/${m.key}` : `/explore/${m.key}`, icon: curated?.icon || meta.icon, label: curated?.label || meta.label }
+          })
+      : ENTITY_LIST.map((e) => ({ key: e.key, to: `/records/${e.key}`, icon: e.icon, label: e.label }))
+    return list.filter((it) => !hidden.has(it.key))
+  }, [moduleList, hidden])
 
-  const visibleItems = navItems.filter((it) => !hidden.has(it.key))
+  // Group items into sections for the expanded, unsearched view.
+  const sections = useMemo(() => {
+    const map = new Map()
+    for (const it of items) {
+      const g = getModuleGroup(it.key)
+      if (!map.has(g)) map.set(g, [])
+      map.get(g).push(it)
+    }
+    return SECTIONS.filter((s) => map.has(s)).map((s) => ({
+      section: s,
+      items: map.get(s).sort((a, b) => a.label.localeCompare(b.label)),
+    }))
+  }, [items])
+
+  const q = query.trim().toLowerCase()
+  const filtered = q ? items.filter((it) => it.label.toLowerCase().includes(q)) : null
 
   const Item = ({ to, end, icon, label }) => (
     <NavLink to={to} end={end} className={cls} title={collapsed ? label : undefined}>
@@ -69,10 +81,14 @@ export default function Sidebar() {
     </NavLink>
   )
 
+  const SectionLabel = ({ children }) => (
+    <div className={`pb-1 pt-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500 ${collapsed ? 'text-center' : 'px-3'}`}>
+      {collapsed ? '·' : children}
+    </div>
+  )
+
   return (
-    <aside
-      className={`flex flex-col bg-slate-900 text-slate-100 transition-[width] duration-200 ${collapsed ? 'w-16' : 'w-60'}`}
-    >
+    <aside className={`flex flex-col bg-slate-900 text-slate-100 transition-[width] duration-200 ${collapsed ? 'w-16' : 'w-60'}`}>
       <div className={`flex items-center py-5 ${collapsed ? 'justify-center px-2' : 'px-4'}`}>
         {collapsed ? (
           <Logo src={companyLogo} panel className="h-7 w-7" alt="Company" />
@@ -84,17 +100,48 @@ export default function Sidebar() {
         )}
       </div>
 
-      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-2">
+      {/* Sidebar search (expanded only) */}
+      {!collapsed && (
+        <div className="px-3 pb-2">
+          <input
+            className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-slate-100 placeholder-slate-500 focus:border-brand-500 focus:outline-none"
+            placeholder="Search menu…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </div>
+      )}
+
+      <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-1">
         <Item to="/" end icon="📊" label={t('nav.dashboard')} />
 
-        <div className={`pb-1 pt-4 text-[10px] font-semibold uppercase tracking-wider text-slate-500 ${collapsed ? 'text-center' : 'px-3'}`}>
-          {collapsed ? '•••' : t('nav.records')}
-        </div>
-        {visibleItems.map((it) => (
-          <Item key={it.key} to={it.to} icon={it.icon} label={it.label} />
-        ))}
-        {hasStatements && !hidden.has('mico360statements') && (
-          <Item to="/statements" icon="📑" label="Client Statements" />
+        {collapsed || filtered ? (
+          <>
+            {!collapsed && <SectionLabel>{t('nav.records')}</SectionLabel>}
+            {(filtered || items).map((it) => (
+              <Item key={it.key} to={it.to} icon={it.icon} label={it.label} />
+            ))}
+            {(!q) && hasStatements && !hidden.has('mico360statements') && (
+              <Item to="/statements" icon="📑" label="Client Statements" />
+            )}
+          </>
+        ) : (
+          <>
+            {sections.map((sec) => (
+              <div key={sec.section}>
+                <SectionLabel>{sec.section}</SectionLabel>
+                {sec.items.map((it) => (
+                  <Item key={it.key} to={it.to} icon={it.icon} label={it.label} />
+                ))}
+              </div>
+            ))}
+            {hasStatements && !hidden.has('mico360statements') && (
+              <div>
+                <SectionLabel>Reports</SectionLabel>
+                <Item to="/statements" icon="📑" label="Client Statements" />
+              </div>
+            )}
+          </>
         )}
       </nav>
 

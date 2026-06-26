@@ -252,6 +252,16 @@ function UpdatesSection({ notify }) {
           <button className="btn-outline" onClick={check}>Check for updates</button>
         </div>
       </Row>
+      {(status?.state === 'downloading' || status?.state === 'downloaded') && (
+        <Row title="Download progress">
+          <div className="flex w-64 items-center gap-2">
+            <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
+              <div className="h-full bg-brand-600 transition-all" style={{ width: `${status.state === 'downloaded' ? 100 : status.percent || 0}%` }} />
+            </div>
+            <span className="w-10 text-right text-xs tabular-nums text-slate-500">{status.state === 'downloaded' ? 100 : status.percent || 0}%</span>
+          </div>
+        </Row>
+      )}
       <Row title="Release notes" subtitle="View changelog and past releases.">
         <button className="btn-outline" onClick={() => appInfo.openExternal(BRAND.repo + '/releases')}>Open releases</button>
       </Row>
