@@ -136,8 +136,8 @@ function DisplaySection() {
       </Row>
       <Row title="Zoom level" subtitle="Scale the whole interface.">
         <select className="input w-auto" value={d.zoom} onChange={(e) => update('display', { zoom: Number(e.target.value) })}>
-          {[100, 125, 150, 175].map((z) => (
-            <option key={z} value={z}>{z}%</option>
+          {[75, 80, 90, 100, 110, 125, 150, 175].map((z) => (
+            <option key={z} value={z}>{z}%{z === 90 ? ' (default)' : ''}</option>
           ))}
         </select>
       </Row>

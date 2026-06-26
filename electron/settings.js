@@ -13,7 +13,7 @@ const DEFAULTS = {
   display: {
     theme: 'system', // 'light' | 'dark' | 'system'
     density: 'comfortable', // 'comfortable' | 'compact'
-    zoom: 100, // 100 | 125 | 150 | 175
+    zoom: 90, // default slightly zoomed out so more fits; 80–175 selectable
     dashboardLayout: 'default',
     language: 'en', // UI language code
     hiddenMenu: [], // main-menu items the user has hidden
