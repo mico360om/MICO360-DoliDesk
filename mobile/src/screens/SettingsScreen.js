@@ -7,7 +7,7 @@ import { useProfiles } from '../context/ProfileContext.js'
 import { useTheme } from '../context/ThemeContext.js'
 import { getAppLock, setAppLock } from '../lib/store.js'
 
-const APP_VERSION = '0.1.4'
+const APP_VERSION = '0.1.5'
 const APPEARANCES = [['system', 'System'], ['light', 'Light'], ['dark', 'Dark']]
 
 export default function SettingsScreen() {
