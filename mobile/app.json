@@ -2,7 +2,7 @@
   "expo": {
     "name": "MICO360 DoliDesk",
     "slug": "mico360-dolidesk",
-    "version": "0.1.0",
+    "version": "0.1.4",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -12,7 +12,7 @@
     },
     "android": {
       "package": "com.mico360.dolidesk",
-      "versionCode": 1,
+      "versionCode": 5,
       "adaptiveIcon": {
         "backgroundColor": "#b3171e",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -24,7 +24,12 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-sharing",
+      [
+        "expo-local-authentication",
+        { "faceIDPermission": "Allow MICO360 DoliDesk to use Face ID to unlock the app." }
+      ]
     ]
   }
 }

@@ -71,9 +71,9 @@ export default function ProfileForm({ initial, onDone, onCancel }) {
         <Input placeholder="https://erp.example.com" value={url} onChangeText={setUrl} autoCapitalize="none" keyboardType="url" />
       </Field>
 
-      <View style={{ flexDirection: 'row', backgroundColor: '#f1f5f9', borderRadius: 10, padding: 3, marginBottom: 14 }}>
+      <View style={{ flexDirection: 'row', backgroundColor: colors.subtle, borderRadius: 10, padding: 3, marginBottom: 14 }}>
         {[['apikey', 'API key'], ['login', 'Login & password']].map(([v, l]) => (
-          <Pressable key={v} onPress={() => { setMode(v); setTest(null) }} style={{ flex: 1, paddingVertical: 8, borderRadius: 8, backgroundColor: mode === v ? '#fff' : 'transparent', alignItems: 'center' }}>
+          <Pressable key={v} onPress={() => { setMode(v); setTest(null) }} style={{ flex: 1, paddingVertical: 8, borderRadius: 8, backgroundColor: mode === v ? colors.card : 'transparent', alignItems: 'center' }}>
             <Text style={{ fontWeight: '600', color: mode === v ? colors.brand : colors.textMuted }}>{l}</Text>
           </Pressable>
         ))}
@@ -93,11 +93,11 @@ export default function ProfileForm({ initial, onDone, onCancel }) {
       )}
 
       {test ? (
-        <Text style={{ color: test.ok ? '#15803d' : '#b91c1c', marginBottom: 10 }}>
+        <Text style={{ color: test.ok ? colors.success : colors.danger, marginBottom: 10 }}>
           {test.ok ? `✓ Connected${test.version && test.version !== 'unknown' ? ` — Dolibarr ${test.version}` : ''}` : `✗ ${test.error || 'Connection failed'}`}
         </Text>
       ) : null}
-      {error ? <Text style={{ color: '#b91c1c', marginBottom: 10 }}>{error}</Text> : null}
+      {error ? <Text style={{ color: colors.danger, marginBottom: 10 }}>{error}</Text> : null}
 
       <View style={{ flexDirection: 'row', gap: 10 }}>
         <Btn title="Test" variant="outline" onPress={handleTest} disabled={busy} style={{ flex: 1 }} />

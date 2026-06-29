@@ -7,6 +7,8 @@ const ENDPOINTS = {
   products: '/products',
   orders: '/orders',
   proposals: '/proposals',
+  supplierorders: '/supplierorders',
+  supplierinvoices: '/supplierinvoices',
 }
 
 export function apiBase(rawUrl) {
@@ -72,6 +74,120 @@ export async function list(profile, type, opts = {}) {
 export async function getOne(profile, type, id) {
   const ep = ENDPOINTS[type]
   return request(profile, `${ep}/${encodeURIComponent(id)}`)
+}
+
+// Page through a record type up to `cap` rows (used by reports).
+export async function listAll(profile, type, { cap = 3000, sortfield = 't.rowid', sortorder = 'DESC' } = {}) {
+  const per = 100
+  let page = 0
+  const out = []
+  while (out.length < cap) {
+    const batch = await list(profile, type, { limit: per, page, sortfield, sortorder })
+    out.push(...batch)
+    if (batch.length < per) break
+    page += 1
+  }
+  return out.slice(0, cap)
+}
+
+// Resolve third-party ids → display names. Caches the full list per profile.
+const tpCache = new Map()
+export async function resolveThirdparties(profile, ids) {
+  const key = profile?.url || ''
+  if (!tpCache.has(key)) tpCache.set(key, new Map())
+  const cache = tpCache.get(key)
+  const want = [...new Set((ids || []).map((x) => String(x)).filter((x) => x && x !== '0'))]
+  const missing = want.filter((id) => !cache.has(id))
+  if (missing.length) {
+    try {
+      const all = await listAll(profile, 'thirdparties', { cap: 2000 })
+      for (const r of all) {
+        const id = String(r.id ?? r.rowid)
+        if (id) cache.set(id, r.name || r.name_alias || `#${id}`)
+      }
+    } catch {
+      /* fall through to per-id */
+    }
+    await Promise.all(
+      missing.filter((id) => !cache.has(id)).map(async (id) => {
+        try {
+          const r = await getOne(profile, 'thirdparties', id)
+          cache.set(id, r.name || r.name_alias || `#${id}`)
+        } catch {
+          cache.set(id, `#${id}`)
+        }
+      })
+    )
+  }
+  const out = {}
+  for (const id of want) out[id] = cache.get(id) || `#${id}`
+  return out
+}
+
+export function clearThirdpartyCache() {
+  tpCache.clear()
+}
+
+// Dolibarr "modulepart" codes for the documents API, keyed by our type.
+const MODULE_PART = {
+  invoices: 'facture',
+  orders: 'commande',
+  proposals: 'propal',
+  thirdparties: 'societe',
+  products: 'product',
+  supplierorders: 'commande_fournisseur',
+  supplierinvoices: 'facture_fournisseur',
+}
+
+export function hasDocuments(type) {
+  return Boolean(MODULE_PART[type])
+}
+
+async function listDocuments(profile, type, id) {
+  const modulepart = MODULE_PART[type]
+  if (!modulepart) return []
+  try {
+    const data = await request(profile, '/documents', { params: { modulepart, id } })
+    return Array.isArray(data) ? data : []
+  } catch (err) {
+    if (err.status === 404) return []
+    throw err
+  }
+}
+
+async function downloadDocument(profile, type, originalFile) {
+  const modulepart = MODULE_PART[type]
+  if (!modulepart) throw new Error('Documents are not available for this record type.')
+  const data = await request(profile, '/documents/download', { params: { modulepart, original_file: originalFile } })
+  if (!data || !data.content) throw new Error('The document could not be retrieved.')
+  return {
+    filename: data.filename || originalFile.split('/').pop(),
+    type: data['content-type'] || 'application/pdf',
+    content: data.content, // base64
+  }
+}
+
+// Find and download the record's PDF (base64). Tries the listed PDFs, then the
+// conventional <ref>/<ref>.pdf path, collecting failures for a clear error.
+export async function downloadRecordPdf(profile, type, id, ref) {
+  const attempts = []
+  const tryGet = async (orig) => {
+    try { return await downloadDocument(profile, type, orig) } catch (e) { attempts.push(`${orig} → ${e.message}`); return null }
+  }
+  let docs = []
+  try { docs = await listDocuments(profile, type, id) } catch (e) { attempts.push(`list → ${e.message}`) }
+  const pdfs = docs.filter((d) => /\.pdf$/i.test(d.name || d.relativename || ''))
+  for (const pdf of pdfs) {
+    const rel = pdf.relativename || (pdf.level1name ? `${pdf.level1name}/${pdf.name}` : pdf.name)
+    const got = await tryGet(rel)
+    if (got) return got
+  }
+  if (ref) {
+    const got = await tryGet(`${ref}/${ref}.pdf`)
+    if (got) return got
+  }
+  const detail = attempts.length ? ` Details: ${attempts.join('; ')}` : ''
+  throw new Error(`No downloadable PDF found. Open the record in Dolibarr once to generate its PDF, then retry.${detail}`)
 }
 
 export async function getCompany(profile) {

@@ -84,6 +84,37 @@ export function recordMoney(record, field) {
   return formatMoney(record[field], BASE_CURRENCY || mc)
 }
 
+// True if a Dolibarr date value falls within the given range (today/week/month).
+export function dateInRange(v, range) {
+  if (!range || range === 'all') return true
+  const d = toDate(v)
+  if (!d) return false
+  const now = new Date()
+  const start = new Date(now)
+  if (range === 'today') start.setHours(0, 0, 0, 0)
+  else if (range === 'week') {
+    start.setDate(now.getDate() - now.getDay())
+    start.setHours(0, 0, 0, 0)
+  } else if (range === 'month') {
+    start.setDate(1)
+    start.setHours(0, 0, 0, 0)
+  } else if (range === 'year') {
+    start.setMonth(0, 1)
+    start.setHours(0, 0, 0, 0)
+  } else return true
+  return d.getTime() >= start.getTime()
+}
+
+// Amount for a line item within a document (foreign-currency docs show their own).
+export function lineMoney(line, record, field) {
+  const mc = record && record.multicurrency_code
+  const mcVal = line['multicurrency_' + field]
+  if (mc && BASE_CURRENCY && mc !== BASE_CURRENCY && mcVal !== null && mcVal !== undefined && mcVal !== '') {
+    return formatMoney(mcVal, mc)
+  }
+  return formatMoney(line[field], BASE_CURRENCY || mc)
+}
+
 export function humanizeKey(key) {
   return String(key)
     .replace(/_/g, ' ')

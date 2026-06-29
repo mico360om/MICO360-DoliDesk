@@ -4,5 +4,8 @@ release/
 *.log
 .DS_Store
 
+# test coverage output
+coverage/
+
 # editor/preview temp files
 *.tmp.*

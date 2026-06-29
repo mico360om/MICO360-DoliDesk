@@ -15,7 +15,7 @@ export default function RecordsScreen({ navigation }) {
           onPress={() => navigation.navigate('RecordList', { type: item.key, title: item.label })}
           style={({ pressed }) => ({
             flexDirection: 'row', alignItems: 'center', gap: 14,
-            backgroundColor: pressed ? '#f8fafc' : colors.card,
+            backgroundColor: pressed ? colors.subtle : colors.card,
             borderRadius: 14, borderWidth: 1, borderColor: colors.border,
             padding: 16, marginBottom: 10,
           })}

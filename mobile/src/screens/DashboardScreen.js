@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { RefreshControl, ScrollView, Text, View } from 'react-native'
-import { Card, ErrorBox, Loading } from '../components/ui.js'
-import { colors } from '../lib/theme.js'
+import { Card, ErrorBox, Loading, OfflineBanner } from '../components/ui.js'
+import { colors, tones } from '../lib/theme.js'
 import { useProfiles } from '../context/ProfileContext.js'
 import { ENTITIES } from '../lib/entities.js'
 import * as api from '../lib/api.js'
+import { cacheGet, cacheSet } from '../lib/cache.js'
 import { formatMoney, formatMoneyShort, toNumber } from '../lib/format.js'
 
 const CAP = 200
@@ -14,6 +15,7 @@ export default function DashboardScreen() {
   const cur = company?.currency_code || company?.currency
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [offline, setOffline] = useState(false)
   const [error, setError] = useState(null)
 
   const load = useCallback(async () => {
@@ -21,17 +23,27 @@ export default function DashboardScreen() {
     setLoading(true)
     setError(null)
     try {
-      const types = Object.keys(ENTITIES)
+      const types = ['invoices', 'orders', 'thirdparties', 'products']
       const settled = await Promise.all(
         types.map(async (t) => {
           try {
-            return [t, await api.list(active, t, { limit: CAP })]
+            return [t, await api.list(active, t, { limit: CAP }), true]
           } catch {
-            return [t, []]
+            return [t, [], false]
           }
         })
       )
-      setData(Object.fromEntries(settled))
+      const obj = Object.fromEntries(settled.map(([t, rows]) => [t, rows]))
+      if (settled.some(([, , ok]) => ok)) {
+        setData(obj)
+        setOffline(false)
+        cacheSet(active.url, 'dashboard', obj)
+      } else {
+        // Everything failed — likely offline. Show the last snapshot if we have one.
+        const c = await cacheGet(active.url, 'dashboard')
+        if (c) { setData(c.data); setOffline(true) }
+        else { setData(obj); setOffline(false) }
+      }
     } catch (e) {
       setError(e.message)
     } finally {
@@ -56,9 +68,9 @@ export default function DashboardScreen() {
 
   const kpis = [
     { label: 'Invoiced', value: formatMoneyShort(invoiceTotal, cur), full: formatMoney(invoiceTotal, cur), tone: colors.brand },
-    { label: 'Outstanding', value: formatMoneyShort(unpaidTotal, cur), full: `${unpaid.length} unpaid`, tone: '#b45309' },
-    { label: 'Orders', value: formatMoneyShort(orderTotal, cur), full: `${(data.orders || []).length} orders`, tone: '#15803d' },
-    { label: 'Customers', value: String(customers), full: `${suppliers} suppliers`, tone: '#1d4ed8' },
+    { label: 'Outstanding', value: formatMoneyShort(unpaidTotal, cur), full: `${unpaid.length} unpaid`, tone: tones.amber.fg },
+    { label: 'Orders', value: formatMoneyShort(orderTotal, cur), full: `${(data.orders || []).length} orders`, tone: colors.success },
+    { label: 'Customers', value: String(customers), full: `${suppliers} suppliers`, tone: tones.blue.fg },
   ]
 
   const minis = [
@@ -69,6 +81,8 @@ export default function DashboardScreen() {
   ]
 
   return (
+    <View style={{ flex: 1, backgroundColor: colors.bg }}>
+    {offline ? <OfflineBanner onRetry={load} /> : null}
     <ScrollView
       style={{ backgroundColor: colors.bg }}
       contentContainerStyle={{ padding: 16 }}
@@ -101,5 +115,6 @@ export default function DashboardScreen() {
         ))}
       </View>
     </ScrollView>
+    </View>
   )
 }

@@ -5,6 +5,8 @@ import * as SecureStore from 'expo-secure-store'
 // in the OS secure store (Android Keystore / iOS Keychain) keyed by profile id.
 
 const META_KEY = 'dolidesk:profiles'
+const LOCK_KEY = 'dolidesk:applock'
+const APPEARANCE_KEY = 'dolidesk:appearance'
 const secureKey = (id) => `dolidesk_apikey_${String(id).replace(/[^A-Za-z0-9._-]/g, '')}`
 
 function genId() {
@@ -79,4 +81,29 @@ export async function getActiveProfile() {
   const meta = await readMeta()
   if (!meta.activeId) return null
   return getProfileWithKey(meta.activeId)
+}
+
+// App-lock preference (biometric/PIN gate on launch + resume).
+export async function getAppLock() {
+  try {
+    return (await AsyncStorage.getItem(LOCK_KEY)) === 'on'
+  } catch {
+    return false
+  }
+}
+export async function setAppLock(on) {
+  await AsyncStorage.setItem(LOCK_KEY, on ? 'on' : 'off')
+}
+
+// Appearance preference: 'system' | 'light' | 'dark'.
+export async function getAppearance() {
+  try {
+    const v = await AsyncStorage.getItem(APPEARANCE_KEY)
+    return v === 'light' || v === 'dark' ? v : 'system'
+  } catch {
+    return 'system'
+  }
+}
+export async function setAppearance(pref) {
+  await AsyncStorage.setItem(APPEARANCE_KEY, pref)
 }

@@ -53,10 +53,10 @@ export default function ProfilesScreen() {
               <View style={{ flex: 1 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <Text style={{ fontWeight: '700', color: colors.text }} numberOfLines={1}>{p.name}</Text>
-                  {active ? <Text style={{ fontSize: 11, color: '#15803d', fontWeight: '700' }}>● Active</Text> : null}
+                  {active ? <Text style={{ fontSize: 11, color: colors.success, fontWeight: '700' }}>● Active</Text> : null}
                 </View>
                 <Text style={{ color: colors.textMuted, fontSize: 12 }} numberOfLines={1}>{p.url}</Text>
-                {res ? <Text style={{ fontSize: 12, marginTop: 2, color: res.ok ? '#15803d' : '#b91c1c' }}>{res.ok ? `✓ Connected${res.version && res.version !== 'unknown' ? ` — v${res.version}` : ''}` : `✗ ${res.error}`}</Text> : null}
+                {res ? <Text style={{ fontSize: 12, marginTop: 2, color: res.ok ? colors.success : colors.danger }}>{res.ok ? `✓ Connected${res.version && res.version !== 'unknown' ? ` — v${res.version}` : ''}` : `✗ ${res.error}`}</Text> : null}
               </View>
             </View>
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
