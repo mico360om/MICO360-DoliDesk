@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Alert, ScrollView, Text, View } from 'react-native'
+import { ActivityIndicator, Alert, ScrollView, Text, View } from 'react-native'
 import { Btn, Card } from '../components/ui.js'
 import ProfileForm from '../components/ProfileForm.js'
 import { colors } from '../lib/theme.js'
@@ -11,15 +11,19 @@ export default function ProfilesScreen() {
   const { profiles, activeId, switchProfile, removeProfile } = useProfiles()
   const [mode, setMode] = useState(null) // null | 'add' | editId
   const [results, setResults] = useState({})
+  const [testing, setTesting] = useState({})
   const editing = profiles.find((p) => p.id === mode) || null
 
   async function test(p) {
+    setTesting((t) => ({ ...t, [p.id]: true }))
     try {
       const full = await getProfileWithKey(p.id)
       const res = await testConnection(full)
       setResults((r) => ({ ...r, [p.id]: res }))
     } catch (e) {
       setResults((r) => ({ ...r, [p.id]: { ok: false, error: e.message } }))
+    } finally {
+      setTesting((t) => ({ ...t, [p.id]: false }))
     }
   }
 
@@ -56,12 +60,16 @@ export default function ProfilesScreen() {
                   {active ? <Text style={{ fontSize: 11, color: colors.success, fontWeight: '700' }}>● Active</Text> : null}
                 </View>
                 <Text style={{ color: colors.textMuted, fontSize: 12 }} numberOfLines={1}>{p.url}</Text>
-                {res ? <Text style={{ fontSize: 12, marginTop: 2, color: res.ok ? colors.success : colors.danger }}>{res.ok ? `✓ Connected${res.version && res.version !== 'unknown' ? ` — v${res.version}` : ''}` : `✗ ${res.error}`}</Text> : null}
+                {testing[p.id]
+                  ? <ActivityIndicator size="small" color={colors.brand} style={{ marginTop: 4, alignSelf: 'flex-start' }} />
+                  : res
+                    ? <Text style={{ fontSize: 12, marginTop: 2, color: res.ok ? colors.success : colors.danger }}>{res.ok ? `✓ Connected${res.version && res.version !== 'unknown' ? ` — v${res.version}` : ''}` : `✗ ${res.error}`}</Text>
+                    : null}
               </View>
             </View>
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
               {!active ? <Btn title="Switch to" variant="outline" onPress={() => switchProfile(p.id)} style={{ flexGrow: 1 }} /> : null}
-              <Btn title="Test" variant="outline" onPress={() => test(p)} style={{ flexGrow: 1 }} />
+              <Btn title={testing[p.id] ? 'Testing…' : 'Test'} variant="outline" onPress={() => test(p)} disabled={!!testing[p.id]} style={{ flexGrow: 1 }} />
               <Btn title="Edit" variant="outline" onPress={() => setMode(p.id)} style={{ flexGrow: 1 }} />
               <Btn title="Delete" variant="danger" onPress={() => confirmDelete(p)} style={{ flexGrow: 1 }} />
             </View>

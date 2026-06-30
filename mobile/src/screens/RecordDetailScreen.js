@@ -2,13 +2,14 @@ import React, { useEffect, useState } from 'react'
 import { ActivityIndicator, Alert, Linking, ScrollView, Text, View } from 'react-native'
 import * as FileSystem from 'expo-file-system/legacy'
 import * as Sharing from 'expo-sharing'
-import { Btn, Card, ErrorBox, Loading, StatusBadge } from '../components/ui.js'
+import { Btn, Card, ErrorBox, Loading, OfflineBanner, StatusBadge } from '../components/ui.js'
 import { colors } from '../lib/theme.js'
 import { getEntity, recordId } from '../lib/entities.js'
 import { formatDate, formatNumber, humanizeKey, lineMoney, recordMoney } from '../lib/format.js'
 import { dolibarrWebUrl } from '../lib/dolibarrUrl.js'
 import { useProfiles } from '../context/ProfileContext.js'
 import * as api from '../lib/api.js'
+import { cacheGet, cacheSet } from '../lib/cache.js'
 
 const DATE_FIELDS = new Set(['date', 'date_lim_reglement', 'date_commande', 'datef', 'fin_validite', 'date_creation', 'date_modification', 'date_validation', 'tms'])
 const MONEY_FIELDS = new Set(['total_ht', 'total_tva', 'total_ttc', 'price', 'price_ttc'])
@@ -44,6 +45,9 @@ export default function RecordDetailScreen({ route }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [pdfBusy, setPdfBusy] = useState(false)
+  const [offline, setOffline] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
+  const CACHE_KEY = `detail:${type}:${id}`
 
   useEffect(() => {
     let cancelled = false
@@ -51,10 +55,12 @@ export default function RecordDetailScreen({ route }) {
       setLoading(true)
       setError(null)
       setCustomer(null)
+      setOffline(false)
       try {
         const r = await api.getOne(active, type, id)
         if (cancelled) return
         setRecord(r)
+        cacheSet(active?.url, CACHE_KEY, r).catch(() => {})
         const socId = entity?.socField ? r[entity.socField] : null
         if (socId && String(socId) !== '0') {
           api.resolveThirdparties(active, [socId])
@@ -62,14 +68,22 @@ export default function RecordDetailScreen({ route }) {
             .catch(() => {})
         }
       } catch (e) {
-        if (!cancelled) setError(e.message)
+        const cached = await cacheGet(active?.url, CACHE_KEY).catch(() => null)
+        if (!cancelled) {
+          if (cached?.data) {
+            setRecord(cached.data)
+            setOffline(true)
+          } else {
+            setError(e.message)
+          }
+        }
       } finally {
         if (!cancelled) setLoading(false)
       }
     }
     run()
     return () => { cancelled = true }
-  }, [active, type, id, entity])
+  }, [active, type, id, entity, refreshKey])
 
   async function viewPdf() {
     setPdfBusy(true)
@@ -104,6 +118,7 @@ export default function RecordDetailScreen({ route }) {
 
   return (
     <ScrollView style={{ backgroundColor: colors.bg }} contentContainerStyle={{ padding: 16 }}>
+      {offline ? <OfflineBanner onRetry={() => setRefreshKey((k) => k + 1)} /> : null}
       <Card style={{ marginBottom: 14 }}>
         <Text style={{ color: colors.textFaint, fontSize: 12 }}>{entity.icon} {entity.singular} · #{record.id ?? record.rowid ?? id}</Text>
         <Text style={{ fontSize: 20, fontWeight: '800', color: colors.text, marginTop: 4 }}>{entity.title(record)}</Text>

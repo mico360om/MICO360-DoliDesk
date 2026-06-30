@@ -11,6 +11,7 @@ import { ThemeProvider, useTheme } from './src/context/ThemeContext.js'
 import { colors } from './src/lib/theme.js'
 import { Loading } from './src/components/ui.js'
 import LockGate from './src/components/LockGate.js'
+import ErrorBoundary from './src/components/ErrorBoundary.js'
 import OnboardingScreen from './src/screens/OnboardingScreen.js'
 import DashboardScreen from './src/screens/DashboardScreen.js'
 import RecordsScreen from './src/screens/RecordsScreen.js'
@@ -90,13 +91,17 @@ function Navigation() {
 export default function App() {
   return (
     <SafeAreaProvider>
-      <ThemeProvider>
-        <LockGate>
-          <ProfileProvider>
-            <Navigation />
-          </ProfileProvider>
-        </LockGate>
-      </ThemeProvider>
+      <ErrorBoundary>
+        <ThemeProvider>
+          <ErrorBoundary>
+            <LockGate>
+              <ProfileProvider>
+                <Navigation />
+              </ProfileProvider>
+            </LockGate>
+          </ErrorBoundary>
+        </ThemeProvider>
+      </ErrorBoundary>
     </SafeAreaProvider>
   )
 }
