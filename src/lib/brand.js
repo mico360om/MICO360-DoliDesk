@@ -10,9 +10,9 @@ export const BRAND = {
     'MICO360 DoliDesk connects to your Dolibarr instance and lets you manage multiple accounts, browse and search records, view dashboards, and export data — from a native desktop app.',
   purpose:
     'The app exists to give Dolibarr users a fast, focused desktop experience for viewing and analysing their business data without logging into the web UI.',
-  website: 'https://mico360.com',
-  email: 'info@mico360.com',
-  privacyEmail: 'info@mico360.com',
+  website: 'https://www.mico360.com',
+  email: 'info@mico360.om',
+  privacyEmail: 'info@mico360.om',
   repo: 'https://github.com/mico360om/MICO360-DoliDesk',
   issues: 'https://github.com/mico360om/MICO360-DoliDesk/issues',
   copyrightYear: 2026,

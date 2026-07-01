@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Alert, Pressable, ScrollView, Switch, Text, View } from 'react-native'
+import { Alert, Linking, Pressable, ScrollView, Switch, Text, View } from 'react-native'
 import * as LocalAuthentication from 'expo-local-authentication'
 import { Card } from '../components/ui.js'
 import { colors } from '../lib/theme.js'
@@ -9,6 +9,8 @@ import { getAppLock, setAppLock } from '../lib/store.js'
 
 const APP_VERSION = '0.1.5'
 const APPEARANCES = [['system', 'System'], ['light', 'Light'], ['dark', 'Dark']]
+const WEBSITE = 'https://www.mico360.com'
+const EMAIL = 'info@mico360.om'
 
 export default function SettingsScreen() {
   const { active, company } = useProfiles()
@@ -37,6 +39,12 @@ export default function SettingsScreen() {
     }
     await setAppLock(next)
     setLock(next)
+  }
+
+  async function openLink(url) {
+    try {
+      if (await Linking.canOpenURL(url)) await Linking.openURL(url)
+    } catch {}
   }
 
   return (
@@ -73,7 +81,7 @@ export default function SettingsScreen() {
           <Switch value={lock} onValueChange={toggleLock} trackColor={{ true: colors.brand }} />
         </View>
         <Text style={{ color: colors.textFaint, fontSize: 12, marginTop: 10 }}>
-          API keys are stored in the device’s secure keystore (Android Keystore / iOS Keychain) and are never shown after saving.
+          API keys are stored in the device's secure keystore (Android Keystore / iOS Keychain) and are never shown after saving.
         </Text>
       </Card>
 
@@ -81,7 +89,15 @@ export default function SettingsScreen() {
         <Text style={{ fontSize: 12, fontWeight: '700', textTransform: 'uppercase', color: colors.textMuted, marginBottom: 10 }}>About</Text>
         <Row label="App" value="MICO360 DoliDesk" />
         <Row label="Version" value={APP_VERSION} />
-        <Text style={{ color: colors.textFaint, fontSize: 12, marginTop: 8 }}>
+        <View style={{ marginTop: 12, gap: 8 }}>
+          <Text onPress={() => openLink(WEBSITE)} style={{ color: colors.brand, fontWeight: '600', fontSize: 13 }}>
+            🌐 {WEBSITE.replace('https://', '')}
+          </Text>
+          <Text onPress={() => openLink(`mailto:${EMAIL}`)} style={{ color: colors.brand, fontWeight: '600', fontSize: 13 }}>
+            ✉️ {EMAIL}
+          </Text>
+        </View>
+        <Text style={{ color: colors.textFaint, fontSize: 12, marginTop: 10 }}>
           A read-only client for the Dolibarr ERP/CRM API.
         </Text>
       </Card>
