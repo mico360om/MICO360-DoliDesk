@@ -11,8 +11,8 @@ export const BRAND = {
   purpose:
     'The app exists to give Dolibarr users a fast, focused desktop experience for viewing and analysing their business data without logging into the web UI.',
   website: 'https://www.mico360.com',
-  email: 'info@mico360.om',
-  privacyEmail: 'info@mico360.om',
+  email: 'info@mico360.com',
+  privacyEmail: 'info@mico360.com',
   repo: 'https://github.com/mico360om/MICO360-DoliDesk',
   issues: 'https://github.com/mico360om/MICO360-DoliDesk/issues',
   copyrightYear: 2026,

@@ -10,7 +10,7 @@ import { getAppLock, setAppLock } from '../lib/store.js'
 const APP_VERSION = '0.1.5'
 const APPEARANCES = [['system', 'System'], ['light', 'Light'], ['dark', 'Dark']]
 const WEBSITE = 'https://www.mico360.com'
-const EMAIL = 'info@mico360.om'
+const EMAIL = 'info@mico360.com'
 
 export default function SettingsScreen() {
   const { active, company } = useProfiles()
